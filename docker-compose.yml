@@ -1,0 +1,22 @@
+version: '3.7'
+
+services:
+
+  neo4j:
+    image: neo4j:4.0
+    ports:
+      - 27474:7474
+      - 27687:7687
+    environment:
+      NEO4J_AUTH: neo4j/secret
+
+  blueprint:
+    container_name: blueprint-execution
+    build:
+      context: ../dapla-blueprint-execution
+      dockerfile: Dockerfile
+    image: dapla-blueprint-execution:dev
+    ports:
+      - 20180:10180
+    depends_on:
+      - neo4j
