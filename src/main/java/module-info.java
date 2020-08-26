@@ -1,7 +1,6 @@
 import no.ssb.dapla.blueprintexecution.BlueprintExecutionApplicationBuilder;
-import no.ssb.helidon.application.HelidonApplicationBuilder;
 
-module blueprint.execution {
+module no.ssb.dapla.blueprintexecution {
     requires io.helidon.webserver;
     requires io.helidon.webserver.accesslog;
     requires io.helidon.health;
@@ -16,7 +15,5 @@ module blueprint.execution {
     requires io.helidon.microprofile.config;
     requires io.helidon.grpc.server; // metrics uses provider org.eclipse.microprofile.config.spi.ConfigProviderResolver
 
-    exports no.ssb.dapla.blueprintexecution;
-
-    provides HelidonApplicationBuilder with BlueprintExecutionApplicationBuilder;
+    provides no.ssb.helidon.application.HelidonApplicationBuilder with BlueprintExecutionApplicationBuilder;
 }

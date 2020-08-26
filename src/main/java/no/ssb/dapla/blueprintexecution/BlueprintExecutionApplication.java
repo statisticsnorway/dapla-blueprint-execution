@@ -1,28 +1,20 @@
 package no.ssb.dapla.blueprintexecution;
 
-import io.grpc.MethodDescriptor;
 import io.helidon.config.Config;
-import io.helidon.grpc.server.GrpcRouting;
-import io.helidon.grpc.server.GrpcServer;
-import io.helidon.grpc.server.GrpcServerConfiguration;
-import io.helidon.grpc.server.GrpcTracingConfig;
-import io.helidon.grpc.server.ServerRequestAttribute;
 import io.helidon.health.HealthSupport;
 import io.helidon.health.checks.HealthChecks;
 import io.helidon.metrics.MetricsSupport;
 import io.helidon.tracing.TracerBuilder;
 import io.helidon.webserver.Routing;
 import io.helidon.webserver.ServerConfiguration;
+import io.helidon.webserver.WebServer;
 import io.helidon.webserver.WebTracingConfig;
 import io.helidon.webserver.accesslog.AccessLogSupport;
 import io.opentracing.Tracer;
-import io.opentracing.contrib.grpc.OperationNameConstructor;
 import no.ssb.dapla.blueprintexecution.service.BlueprintExecutionService;
-import no.ssb.helidon.application.AuthorizationInterceptor;
 import no.ssb.helidon.application.DefaultHelidonApplication;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import io.helidon.webserver.WebServer;
 
 import java.util.concurrent.TimeUnit;
 
