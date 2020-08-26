@@ -15,5 +15,7 @@ module no.ssb.dapla.blueprintexecution {
     requires io.helidon.microprofile.config;
     requires io.helidon.grpc.server; // metrics uses provider org.eclipse.microprofile.config.spi.ConfigProviderResolver
 
+    exports no.ssb.dapla.blueprintexecution;
+
     provides no.ssb.helidon.application.HelidonApplicationBuilder with BlueprintExecutionApplicationBuilder;
 }
