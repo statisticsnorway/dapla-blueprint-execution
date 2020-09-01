@@ -13,7 +13,7 @@ resources:
     - repository: templates
       type: github
       name: statisticsnorway/azure-pipelines-templates
-      ref: refs/tags/0.0.9
+      ref: refs/tags/0.1.1
       endpoint: statisticsnorway (6)
 
 # Pipeline will be run on this base image
@@ -27,6 +27,8 @@ variables:
   # Variables defined here
   - name: fullSha
     value: '$(Build.SourceVersion)'
+  - name: imageHost
+    value: 'https://eu.gcr.io/'
   - name: imageName
     value: 'eu.gcr.io/prod-bip/ssb/dapla/dapla-blueprint-execution'
   - name: repoName
@@ -42,7 +44,9 @@ jobs:
   - template: complete-builds/job-test-coverage-build-gcr.yml@templates
     parameters:
       project: dapla
-      imageName: dapla-blueprint-execution
+      imageName: $(imageName)
+      repoName: $(repoName)
+      artifactName: dapla-blueprint-execution
       mavenContainer: maven:3-adoptopenjdk-14
       checkStyleRunAnalysis: false
 
