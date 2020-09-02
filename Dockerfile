@@ -17,7 +17,7 @@ COPY target/classes/application.yaml /app/conf/
 
 WORKDIR /app
 
-CMD ["java", "-p", "/app/lib", "-m", \
+CMD ["java", "--enable-preview", "-p", "/app/lib", "-m", \
 "no.ssb.dapla.blueprintexecution/no.ssb.dapla.blueprintexecution.BlueprintExecutionApplication"]
 
 EXPOSE 10180
