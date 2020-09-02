@@ -17,7 +17,6 @@ public class BlueprintExecutionServiceTest {
 
     @Test
     public void thatTestEndpointWorks() {
-        System.out.println("FNASDFNASDLKFNAS");
         String getResult = client.get("/").expect200Ok().body();
         assertThat(getResult).isEqualTo("Server is up and running");
     }
