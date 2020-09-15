@@ -1,42 +1,50 @@
 package no.ssb.dapla.blueprintexecution;
 
+import ch.qos.logback.classic.util.ContextInitializer;
 import io.helidon.config.Config;
 import io.helidon.health.HealthSupport;
 import io.helidon.health.checks.HealthChecks;
 import io.helidon.metrics.MetricsSupport;
-import io.helidon.tracing.TracerBuilder;
 import io.helidon.webserver.Routing;
-import io.helidon.webserver.ServerConfiguration;
 import io.helidon.webserver.WebServer;
 import io.helidon.webserver.WebTracingConfig;
 import io.helidon.webserver.accesslog.AccessLogSupport;
-import io.opentracing.Tracer;
 import no.ssb.dapla.blueprintexecution.service.BlueprintExecutionService;
-import no.ssb.helidon.application.DefaultHelidonApplication;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.slf4j.bridge.SLF4JBridgeHandler;
 
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
+import java.util.logging.LogManager;
 
-public class BlueprintExecutionApplication extends DefaultHelidonApplication {
+public class BlueprintExecutionApplication {
 
     private static final Logger LOG;
 
     static {
-        installSlf4jJulBridge();
+        String logbackConfigurationFile = System.getenv("LOGBACK_CONFIGURATION_FILE");
+        if (logbackConfigurationFile != null) {
+            System.setProperty(ContextInitializer.CONFIG_FILE_PROPERTY, logbackConfigurationFile);
+        }
+        LogManager.getLogManager().reset();
+        SLF4JBridgeHandler.removeHandlersForRootLogger();
+        SLF4JBridgeHandler.install();
         LOG = LoggerFactory.getLogger(BlueprintExecutionApplication.class);
     }
 
+    private final Map<Class<?>, Object> instanceByType = new ConcurrentHashMap<>();
+
     public BlueprintExecutionApplication(Config config) {
         put(Config.class, config);
-
-        TracerBuilder<?> tracerBuilder = TracerBuilder.create(config.get("tracing")).registerGlobal(false);
-        Tracer tracer = tracerBuilder.build();
 
         HealthSupport health = HealthSupport.builder()
                 .addLiveness(HealthChecks.healthChecks())
                 .build();
         MetricsSupport metrics = MetricsSupport.create();
+
+
 
         // routing
         Routing routing = Routing.builder()
@@ -50,25 +58,39 @@ public class BlueprintExecutionApplication extends DefaultHelidonApplication {
         put(Routing.class, routing);
 
         // web-server
-        WebServer webServer = WebServer.create(
-                ServerConfiguration.builder(config.get("webserver"))
-                        .tracer(tracer)
-                        .build(),
-                routing);
-        put(WebServer.class, webServer);
+        var webServer = WebServer.builder();
+        webServer.routing(routing)
+                .config(config.get("webserver"));
+
+        put(WebServer.class, webServer.build());
     }
 
     public static void main(String[] args) {
         long startTime = System.currentTimeMillis();
-        new BlueprintExecutionApplicationBuilder().build().start()
+        BlueprintExecutionApplication app = new BlueprintExecutionApplication(Config.create());
+
+        app.get(WebServer.class).start()
                 .toCompletableFuture()
                 .orTimeout(10, TimeUnit.SECONDS)
-                .thenAccept(app -> LOG.info("Webserver running at port: {}, started in {} ms",
-                        app.get(WebServer.class).port(), System.currentTimeMillis() - startTime))
-                .exceptionally(throwable -> {
-                    LOG.error("While starting the application", throwable);
+                .thenAccept(ws -> {
+                    LOG.info("Server up and running: http://{}:{}/api/v1, started in {} ms",
+                            ws.configuration().bindAddress(), ws.port(), System.currentTimeMillis() - startTime);
+                    ws.whenShutdown().thenRun(()
+                            -> System.out.println("WEB server is DOWN. Good bye!"));
+                })
+                .exceptionally(t -> {
+                    LOG.error("Startup failed: " + t.getMessage());
+                    t.printStackTrace(System.err);
                     System.exit(1);
                     return null;
                 });
+    }
+
+    public <T> T put(Class<T> clazz, T instance) {
+        return (T) instanceByType.put(clazz, instance);
+    }
+
+    public <T> T get(Class<T> clazz) {
+        return (T) instanceByType.get(clazz);
     }
 }
