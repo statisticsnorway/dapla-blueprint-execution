@@ -44,15 +44,13 @@ public class BlueprintExecutionApplication {
                 .build();
         MetricsSupport metrics = MetricsSupport.create();
 
-
-
         // routing
         Routing routing = Routing.builder()
                 .register(AccessLogSupport.create(config.get("webserver.access-log")))
                 .register(WebTracingConfig.create(config.get("tracing")))
                 .register(health)
                 .register(metrics)
-                .register("/", new BlueprintExecutionService())
+                .register("/api/v1", new BlueprintExecutionService(config))
                 .build();
 
         put(Routing.class, routing);

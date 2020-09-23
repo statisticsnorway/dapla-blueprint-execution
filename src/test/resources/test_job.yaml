@@ -1,0 +1,28 @@
+apiVersion: "batch/v1"
+kind: "Job"
+metadata:
+  labels:
+    label1: "execute_notebook_dag"
+  name: "jupyter-execution-job"
+spec:
+  template:
+    spec:
+      containers:
+        - name: "jupyter-job-arild"
+          image: "eu.gcr.io/prod-bip/ssb/dapla/dapla-jupyterlab:master-35989879b39e8fdf06e971c29f2de7678c1180cc"
+#          command: ["echo", "THIS IS WORKING"]
+          command: ["papermill", "https://www.dropbox.com/s/g0v2kqtakxr1glt/notebook_test.ipynb?dl=0", "/notebooks/result.ipynb", "-k", "pyspark_k8s"]
+          volumeMounts:
+            - name: notebooks
+              mountPath: "/notebooks"
+      restartPolicy: Never
+      initContainers:
+        - name: "copy-notebooks"
+          image: busybox
+          command: ["sh", "-c", "echo -n THIS IS WORKING > /notebooks/testfile"]
+          volumeMounts:
+            - name: notebooks
+              mountPath: "/notebooks"
+      volumes:
+          - name: notebooks
+            emptyDir: {}

@@ -8,6 +8,9 @@ health:
   readiness:
     idle-timeout: 2000
 
+blueprint:
+  url: http://localhost:10170/api/v1
+
 tracing:
   enabled: true
   service: blueprint-execution

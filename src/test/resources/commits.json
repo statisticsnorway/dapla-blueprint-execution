@@ -1,0 +1,35 @@
+[
+  {
+    "message": "Add rest test notebook\n",
+    "id": "49711b34ccdcc4eea1f8b332e2f19df8a3132854",
+    "createdAt": 1600791329.000000000,
+    "authorName": "Arild Johan Takvam-Borge",
+    "authorEmail": "ajotabo@gmail.com",
+    "authoredAt": 1600791329.000000000,
+    "committerName": "Arild Johan Takvam-Borge",
+    "committerEmail": "ajotabo@gmail.com",
+    "committedAt": 1600791329.000000000
+  },
+  {
+    "message": "Revert \"Switch input/output order\"\n\nThis reverts commit f0a247d7f7b6934940e24af0519bc189955931fb.\n",
+    "id": "5edcbe585de50791ab05470bf32c7f7092e9dfe0",
+    "createdAt": 1599477294.000000000,
+    "authorName": "Hadrien Kohl",
+    "authorEmail": "hadrien.kohl@ssb.no",
+    "authoredAt": 1599477294.000000000,
+    "committerName": "Hadrien Kohl",
+    "committerEmail": "hadrien.kohl@ssb.no",
+    "committedAt": 1599477294.000000000
+  },
+  {
+    "message": "Add a new output\n",
+    "id": "b1c4d0db22fcd94ae0718319756d979f3c62490a",
+    "createdAt": 1599477688.000000000,
+    "authorName": "Hadrien Kohl",
+    "authorEmail": "hadrien.kohl@ssb.no",
+    "authoredAt": 1599477688.000000000,
+    "committerName": "Hadrien Kohl",
+    "committerEmail": "hadrien.kohl@ssb.no",
+    "committedAt": 1599477688.000000000
+  }
+]
