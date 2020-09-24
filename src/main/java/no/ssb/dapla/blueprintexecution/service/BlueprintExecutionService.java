@@ -22,9 +22,11 @@ import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.ExecutionException;
+import java.util.stream.StreamSupport;
 
 
 public class BlueprintExecutionService implements Service {
@@ -101,7 +103,11 @@ public class BlueprintExecutionService implements Service {
                 throw new HttpException(String.format("Error calling %s", commitsRes.lastEndpointURI().toString()), commitsRes.status());
             }
             // TODO pick first commit in list for now. We need a way to find latest commit, createdAt is for now null
-            String commitID = commitsRes.content().as(JsonNode.class).toCompletableFuture().join().get(0).get("id").asText(); // TODO solve this better!
+            JsonNode commits = commitsRes.content().as(JsonNode.class).toCompletableFuture().join();
+            String commitID = StreamSupport.stream(commits.spliterator(), false)
+                    .sorted(Comparator.comparing(jsonNode -> jsonNode.get("createdAt").asInt()))
+                    .map(jsonNode -> jsonNode.get("id").asText())
+                    .findFirst().orElseThrow();
 
 
             // Get all notebooks in given repo from Blueprint
