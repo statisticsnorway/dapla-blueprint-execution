@@ -1,0 +1,32 @@
+apiVersion: "batch/v1"
+kind: "Job"
+metadata:
+  labels:
+    label1: "execute_notebook_dag"
+  name: "dummy-pod-prefix-757b9c7-job"
+spec:
+  template:
+    spec:
+      containers:
+        - name: "dummy-pod-prefix-757b9c7-cont"
+          image: "dummy:image"
+          command: ["papermill", "/dummy-mount-path/notebook.ipynb", "/dev/null", "-k", "pyspark_k8s"]
+          resources:
+            limits:
+              memory: "1234Mi"
+            requests:
+              memory: "4321Mi"
+          volumeMounts:
+            - name: dummy-volume-name
+              mountPath: "/dummy-mount-path"
+      restartPolicy: Never
+      initContainers:
+        - name: "copy-notebooks"
+          image: "dummy:image"
+          command: ["curl", "-X", "GET", "https://example.com/api/v1/repositories/foo/bar", "-H", "accept: application/x-ipynb+json", "-o", "/dummy-mount-path/notebook.ipynb"]
+          volumeMounts:
+            - name: dummy-volume-name
+              mountPath: "/dummy-mount-path"
+      volumes:
+        - name: dummy-volume-name
+          emptyDir: {}

@@ -4,12 +4,24 @@ webserver:
   access-log:
     format: "%h %u %t %r %s %b %{Referer}i %T"
 
+k8s:
+  namespace: dapla-spark
+  volume-name: notebooks
+  pod-prefix: jupyter-execution
+  mount-path: /notebooks
+  container:
+    memory-limit: "1024Mi"
+    memory-request: "512Mi"
+    image: "eu.gcr.io/prod-bip/ssb/dapla/dapla-jupyterlab:master-35989879b39e8fdf06e971c29f2de7678c1180cc"
+
+blueprint:
+  url: http://localhost:10170/api/v1
+
 health:
   readiness:
     idle-timeout: 2000
 
-blueprint:
-  url: http://localhost:10170/api/v1
+
 
 tracing:
   enabled: true

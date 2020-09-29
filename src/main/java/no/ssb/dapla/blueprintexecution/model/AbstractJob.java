@@ -9,9 +9,12 @@ public abstract class AbstractJob {
 
     protected final Set<AbstractJob> previousNodes;
     protected final Set<AbstractJob> nextNodes = new LinkedHashSet<>();
+
     private final UUID id = UUID.randomUUID();
+
     private Multi<AbstractJob> previousExecution;
     private Single<AbstractJob> currentExecution;
+
     protected AbstractJob(AbstractJob... previousNodes) {
         List<AbstractJob> previousNodesList = Arrays.asList(Objects.requireNonNull(previousNodes));
         this.previousNodes = new LinkedHashSet<>(previousNodesList);
