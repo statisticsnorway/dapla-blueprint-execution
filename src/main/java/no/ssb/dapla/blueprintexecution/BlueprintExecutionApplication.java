@@ -4,6 +4,7 @@ import ch.qos.logback.classic.util.ContextInitializer;
 import io.helidon.config.Config;
 import io.helidon.health.HealthSupport;
 import io.helidon.health.checks.HealthChecks;
+import io.helidon.media.jackson.JacksonSupport;
 import io.helidon.metrics.MetricsSupport;
 import io.helidon.webserver.Routing;
 import io.helidon.webserver.WebServer;
@@ -58,7 +59,8 @@ public class BlueprintExecutionApplication {
         // web-server
         var webServer = WebServer.builder();
         webServer.routing(routing)
-                .config(config.get("webserver"));
+                .config(config.get("webserver"))
+                .addMediaSupport(JacksonSupport.create());
 
         put(WebServer.class, webServer.build());
     }

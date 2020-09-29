@@ -11,12 +11,12 @@ import io.helidon.webclient.WebClient;
 import io.helidon.webclient.WebClientResponse;
 import io.helidon.webserver.*;
 import no.ssb.dapla.blueprintexecution.k8s.K8sExecutionJob;
-import no.ssb.dapla.blueprintexecution.model.Execution;
-import no.ssb.dapla.blueprintexecution.model.ExecutionPlanCreator;
+import no.ssb.dapla.blueprintexecution.model.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
+import java.net.URI;
 import java.util.*;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
@@ -32,7 +32,7 @@ public class BlueprintExecutionService implements Service {
     private final ObjectMapper mapper = new ObjectMapper();
 
     // Keep all the executions in memory for now.
-    private final Map<String, Execution> executionsMap = new LinkedHashMap<>();
+    private final Map<UUID, Execution> executionsMap = new LinkedHashMap<>();
 
     // Executes the jobs.
     private final Executor jobExecutor = Executors.newCachedThreadPool();
@@ -45,7 +45,86 @@ public class BlueprintExecutionService implements Service {
     public void update(Routing.Rules rules) {
         rules
                 .get("/status", this::doTest)
+                .post("/execute", Handler.create(ExecutionRequest.class, this::doPostExecute))
+                .post("/execution/{executionId}/start", this::doPostExecutionStart)
+                .put("/execution/{executionId}/cancel", this::doPutExecutionCancel)
+                .get("/execution/{executionId}", this::doGetExecution)
+                .get("/execution/{executionId}/job/{jobId}", this::doGetExecutionJob)
+                .get("/execution/{executionId}/job/{jobId}/log", this::doGetExecutionJobLog)
+                .put("/execution/{executionId}/job/{jobId}/cancel", this::doPutExecutionJobCancel)
+
                 .put("/execute", Handler.create(byte[].class, this::doExecute));
+    }
+
+    private Execution getExecutionOrThrow(ServerRequest request) throws NotFoundException {
+        var executionId = request.path().param("executionId");
+        var executionUUID = UUID.fromString(executionId);
+        if (!executionsMap.containsKey(executionUUID)) {
+            throw new NotFoundException("no execution with id " + executionId);
+        }
+        return executionsMap.get(executionUUID);
+    }
+
+    private AbstractJob getJobOrThrow(ServerRequest request) throws NotFoundException {
+        var jobId = request.path().param("jobId");
+        try {
+            var execution = getExecutionOrThrow(request);
+            var jobUUID = UUID.fromString(jobId);
+            var optionalJob = execution.getJobs().stream().filter(job -> {
+                return jobUUID.equals(job.getId());
+            }).findFirst();
+            return optionalJob.orElseThrow(() -> new NotFoundException("no job with id " + jobId));
+        } catch (IllegalArgumentException iae) {
+            throw new BadRequestException("could not parse uuid " + jobId, iae);
+        }
+    }
+
+    private void doPostExecute(ServerRequest request, ServerResponse response, ExecutionRequest executionRequest) {
+        var execution = new Execution();
+        executionsMap.put(execution.getId(), execution);
+        response.headers().location(URI.create("/api/v1/execution/" + execution.getId()));
+        response.status(Http.Status.CREATED_201);
+        response.send();
+    }
+
+    private void doGetExecution(ServerRequest request, ServerResponse response) {
+        var execution = getExecutionOrThrow(request);
+        response.status(Http.Status.OK_200).send(execution);
+    }
+
+    private void doPostExecutionStart(ServerRequest request, ServerResponse response) {
+        var execution = getExecutionOrThrow(request);
+        if (execution.getStatus() != Execution.Status.Ready) {
+            response.status(Http.Status.CONFLICT_409).send("Not ready");
+        } else {
+            execution.startAll();
+            response.status(Http.Status.NO_CONTENT_204).send();
+        }
+    }
+
+    private void doPutExecutionCancel(ServerRequest request, ServerResponse response) {
+        var execution = getExecutionOrThrow(request);
+        if (execution.getStatus() != Execution.Status.Running) {
+            response.status(Http.Status.CONFLICT_409).send("Not running");
+        } else {
+            execution.cancelAll();
+            response.status(Http.Status.NO_CONTENT_204).send();
+        }
+    }
+
+    private void doGetExecutionJob(ServerRequest request, ServerResponse response) {
+        var job = getJobOrThrow(request);
+        response.status(Http.Status.OK_200).send(job);
+    }
+
+    private void doGetExecutionJobLog(ServerRequest request, ServerResponse response) {
+        var job = getJobOrThrow(request);
+        response.status(Http.Status.OK_200).send(); //job.getLog());
+    }
+
+    private void doPutExecutionJobCancel(ServerRequest request, ServerResponse response) {
+        var job = getJobOrThrow(request);
+        response.status(Http.Status.NO_CONTENT_204).send(); // job.cancel());
     }
 
     private void doTest(ServerRequest req, ServerResponse res) {
@@ -53,6 +132,7 @@ public class BlueprintExecutionService implements Service {
         res.send("Server is up and running");
     }
 
+    @Deprecated
     private void doExecute(ServerRequest req, ServerResponse res, byte[] body) {
         // Workflow:
         // Choose repo (provide name in json to this endpoint, get ID from blueprint service):

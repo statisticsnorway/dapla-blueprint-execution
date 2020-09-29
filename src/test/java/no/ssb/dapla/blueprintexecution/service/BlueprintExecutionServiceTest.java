@@ -1,16 +1,6 @@
 package no.ssb.dapla.blueprintexecution.service;
 
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
-import io.fabric8.kubernetes.api.model.Container;
-import io.fabric8.kubernetes.api.model.ContainerBuilder;
-import io.fabric8.kubernetes.api.model.EmptyDirVolumeSourceBuilder;
-import io.fabric8.kubernetes.api.model.Pod;
-import io.fabric8.kubernetes.api.model.PodList;
-import io.fabric8.kubernetes.api.model.Quantity;
-import io.fabric8.kubernetes.api.model.Volume;
-import io.fabric8.kubernetes.api.model.VolumeBuilder;
+import io.fabric8.kubernetes.api.model.*;
 import io.fabric8.kubernetes.api.model.batch.Job;
 import io.fabric8.kubernetes.api.model.batch.JobBuilder;
 import io.fabric8.kubernetes.client.DefaultKubernetesClient;
@@ -24,21 +14,23 @@ import io.fabric8.kubernetes.client.internal.SerializationUtils;
 import io.helidon.common.http.Http;
 import io.helidon.common.reactive.Single;
 import io.helidon.config.Config;
+import io.helidon.media.jackson.JacksonSupport;
 import io.helidon.webclient.WebClient;
 import io.helidon.webclient.WebClientResponse;
 import io.helidon.webserver.WebServer;
 import no.ssb.dapla.blueprintexecution.BlueprintExecutionApplication;
 import no.ssb.dapla.blueprintexecution.HelidonConfigExtension;
-import no.ssb.dapla.blueprintexecution.model.Edge;
-import no.ssb.dapla.blueprintexecution.model.Notebook;
+import no.ssb.dapla.blueprintexecution.model.Execution;
+import no.ssb.dapla.blueprintexecution.model.ExecutionRequest;
 import okhttp3.Response;
 import org.junit.Ignore;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
+import java.net.URI;
 import java.util.Collections;
-import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -56,7 +48,65 @@ public class BlueprintExecutionServiceTest {
     static void beforeAll(Config config) throws InterruptedException, ExecutionException, TimeoutException {
         server = new BlueprintExecutionApplication(config).get(WebServer.class);
         server.start().get(10, TimeUnit.SECONDS);
-        client = WebClient.builder().baseUri("http://localhost:" + server.port()).build();
+        client = WebClient.builder()
+                .baseUri("http://localhost:" + server.port())
+                .addMediaSupport(JacksonSupport.create())
+                .build();
+    }
+
+    @Test
+    URI testCreateExecution() {
+        var request = new ExecutionRequest();
+        request.notebookPath = "/foo/bar";
+        request.repo = "https://example.com";
+        var response = client.post().path("/api/v1/execute").submit(request).await();
+        assertThat(response.status()).isEqualTo(Http.Status.CREATED_201);
+        assertThat(response.headers().location()).isNotEmpty();
+        return response.headers().location().orElseThrow();
+    }
+
+    @Test
+    void testCreateThenGet() {
+        var notFoundResponse = client.get().path("/api/v1/execution/" + UUID.randomUUID())
+                .submit().await();
+        assertThat(notFoundResponse.status()).isEqualTo(Http.Status.NOT_FOUND_404);
+
+        var uri = testCreateExecution();
+        var response = client.get().path(uri.getPath()).submit().await();
+
+        assertThat(response.status()).isEqualTo(Http.Status.OK_200);
+        assertThat(response.content().as(Execution.class).await()).isNotNull();
+    }
+
+    @Test
+    void testCreateThenStartThenCancel() {
+        var uri = testCreateExecution();
+        var response = client.get().path(uri.getPath()).submit().await();
+
+        assertThat(response.status()).isEqualTo(Http.Status.OK_200);
+        assertThat(response.content().as(Execution.class)).isNotNull();
+
+        var cancelNotStartedResponse = client.put().path(uri.getPath() + "/cancel").submit().await();
+        assertThat(cancelNotStartedResponse.status()).isEqualTo(Http.Status.CONFLICT_409);
+        assertThat(cancelNotStartedResponse.content().as(String.class).await()).isEqualTo("Not running");
+
+        var startResponse = client.post().path(uri.getPath() + "/start").submit().await();
+        assertThat(startResponse.status()).isEqualTo(Http.Status.NO_CONTENT_204);
+
+        var alreadyStartedResponse = client.post().path(uri.getPath() + "/start").submit().await();
+        assertThat(alreadyStartedResponse.status()).isEqualTo(Http.Status.CONFLICT_409);
+        assertThat(alreadyStartedResponse.content().as(String.class).await()).isEqualTo("Not ready");
+
+        var cancelResponse = client.put().path(uri.getPath() + "/cancel").submit().await();
+        assertThat(cancelResponse.status()).isEqualTo(Http.Status.NO_CONTENT_204);
+
+    }
+
+    @Test
+    void testBlueprintErrors() {
+        // Create a mock server.
+        // Test 404 is propagated.
+        // Test 500 is propagated.
     }
 
     @Test

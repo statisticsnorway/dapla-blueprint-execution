@@ -33,7 +33,7 @@ public class NotebookExecutionTest {
 
         assertThat(jobIResult.toCompletableFuture().isDone()).isFalse();
         assertThat(jobHResult.toCompletableFuture().isDone()).isFalse();
-         jobI.executePrevious();
+        jobI.executePrevious();
 
         jobIResult.get();
         jobHResult.get();
