@@ -3,8 +3,11 @@ package no.ssb.dapla.blueprintexecution.model;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import no.ssb.dapla.blueprintexecution.blueprint.NotebookDetail;
+import no.ssb.dapla.blueprintexecution.blueprint.NotebookGraph;
 import org.junit.jupiter.api.Test;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -18,29 +21,30 @@ class ExecutionPlanCreatorTest {
 
     @Test
     void testPayloadParsing() throws Exception{
-
-        JsonNode jsonNode = mapper.readTree(classloader.getResourceAsStream("dag.json"));
-        ExecutionPlanCreator executionPlanCreator = new ExecutionPlanCreator(jsonNode);
-        assertThat(executionPlanCreator.getNotebooks().size()).isEqualTo(4);
-        assertThat(executionPlanCreator.getEdges().size()).isEqualTo(5);
+        NotebookGraph graph = mapper.readValue(classloader.getResourceAsStream("dag.json"), NotebookGraph.class);
+        assertThat(graph.nodes.size()).isEqualTo(4);
+        assertThat(graph.edges.size()).isEqualTo(5);
     }
 
     @Test
     void thatCyclicGraphFails() throws Exception{
-        JsonNode dag = mapper.readTree(classloader.getResourceAsStream("dag_invalid.json"));
-        ExecutionPlanCreator executionPlanCreator = new ExecutionPlanCreator(dag);
-        assertThatThrownBy(executionPlanCreator::createExecutionPlan).isInstanceOf(IllegalArgumentException.class);
+        NotebookGraph graph = mapper.readValue(classloader.getResourceAsStream("dag_invalid.json"), NotebookGraph.class);
+        assertThatThrownBy(() -> {
+            ExecutionPlanCreator executionPlanCreator = new ExecutionPlanCreator(graph);
+            executionPlanCreator.iterator();
+        }).isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test
     void testCreateExecutionPlan() throws Exception {
-        JsonNode dag = mapper.readTree(classloader.getResourceAsStream("dag.json"));
-        ExecutionPlanCreator executionPlanCreator = new ExecutionPlanCreator(dag);
-        List<String> executionPlan = executionPlanCreator.createExecutionPlan();
+        NotebookGraph graph = mapper.readValue(classloader.getResourceAsStream("dag.json"), NotebookGraph.class);
+        Iterable<NotebookDetail> executionPlan = new ExecutionPlanCreator(graph);
 
         // Get correct plan from resources/executionPlan.json
-        JsonNode correctPlanJson = mapper.readTree(classloader.getResourceAsStream("executionPlan.json"));
-        List<Notebook> correctPlan = mapper.readValue(mapper.writeValueAsString(correctPlanJson.get("nodes")), new TypeReference<>() {});
-        assertThat(executionPlan).isEqualTo(correctPlan.stream().map(Notebook::getFetchUrl).collect(Collectors.toList()));
+        Iterable<NotebookDetail> expectedPlan = mapper.readValue(
+                classloader.getResourceAsStream("executionPlan.json"), new TypeReference<>() {});
+
+        assertThat(executionPlan).usingElementComparatorOnFields("id")
+                .containsAll(expectedPlan);
     }
 }

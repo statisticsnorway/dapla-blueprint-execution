@@ -12,19 +12,17 @@ import io.fabric8.kubernetes.client.extended.run.RunConfigBuilder;
 import io.fabric8.kubernetes.client.extended.run.RunOperations;
 import io.fabric8.kubernetes.client.internal.SerializationUtils;
 import io.helidon.common.http.Http;
-import io.helidon.common.reactive.Single;
 import io.helidon.config.Config;
 import io.helidon.media.jackson.JacksonSupport;
 import io.helidon.webclient.WebClient;
-import io.helidon.webclient.WebClientResponse;
 import io.helidon.webserver.WebServer;
 import no.ssb.dapla.blueprintexecution.BlueprintExecutionApplication;
 import no.ssb.dapla.blueprintexecution.HelidonConfigExtension;
 import no.ssb.dapla.blueprintexecution.model.Execution;
 import no.ssb.dapla.blueprintexecution.model.ExecutionRequest;
 import okhttp3.Response;
-import org.junit.Ignore;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
@@ -35,7 +33,6 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
-import static no.ssb.dapla.blueprintexecution.WebClientResponseAssert.assertThat;
 import static org.assertj.core.api.Assertions.assertThat;
 
 @ExtendWith(HelidonConfigExtension.class)
@@ -103,26 +100,7 @@ public class BlueprintExecutionServiceTest {
     }
 
     @Test
-    void testBlueprintErrors() {
-        // Create a mock server.
-        // Test 404 is propagated.
-        // Test 500 is propagated.
-    }
-
-    @Test
-    public void thatTestEndpointWorks() throws ExecutionException, InterruptedException {
-
-        Single<WebClientResponse> response = client.get().path("/").submit();
-        assertThat(response)
-                .succeedsWithin(1, TimeUnit.SECONDS);
-        assertThat(response.await())
-                .hasStatus(Http.Status.OK_200);
-        assertThat(response.get().content().as(String.class).get())
-                .isEqualTo("Server is up and running");
-    }
-
-    @Test
-    @Ignore
+    @Disabled
     void testKubernetesJob() throws Exception {
         String podName = "jupyter-execution";
         String namespace = "dapla-spark";
@@ -203,7 +181,7 @@ public class BlueprintExecutionServiceTest {
     }
 
     @Test
-    @Ignore
+    @Disabled
     void testKubernetesClient() throws Exception {
         String podName = "jupyter-execution";
         String namespace = "dapla-spark";

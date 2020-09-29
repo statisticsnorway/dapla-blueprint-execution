@@ -10,8 +10,15 @@ import io.helidon.media.jackson.JacksonSupport;
 import io.helidon.webclient.WebClient;
 import io.helidon.webclient.WebClientResponse;
 import io.helidon.webserver.*;
+import no.ssb.dapla.blueprintexecution.blueprint.BlueprintClient;
+import no.ssb.dapla.blueprintexecution.blueprint.Commit;
+import no.ssb.dapla.blueprintexecution.blueprint.Notebook;
+import no.ssb.dapla.blueprintexecution.blueprint.NotebookGraph;
 import no.ssb.dapla.blueprintexecution.k8s.K8sExecutionJob;
-import no.ssb.dapla.blueprintexecution.model.*;
+import no.ssb.dapla.blueprintexecution.model.AbstractJob;
+import no.ssb.dapla.blueprintexecution.model.Execution;
+import no.ssb.dapla.blueprintexecution.model.ExecutionPlanCreator;
+import no.ssb.dapla.blueprintexecution.model.ExecutionRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -21,6 +28,7 @@ import java.util.*;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
+import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
 
@@ -37,8 +45,12 @@ public class BlueprintExecutionService implements Service {
     // Executes the jobs.
     private final Executor jobExecutor = Executors.newCachedThreadPool();
 
+    // Http blueprint client.
+    private final BlueprintClient blueprintClient;
+
     public BlueprintExecutionService(Config config) {
         this.config = config;
+        this.blueprintClient = new BlueprintClient(config);
     }
 
     @Override
@@ -56,27 +68,30 @@ public class BlueprintExecutionService implements Service {
                 .put("/execute", Handler.create(byte[].class, this::doExecute));
     }
 
+    private UUID parseUUIDOrThrow(ServerRequest request, String name) throws BadRequestException {
+        var param = request.path().param(name);
+        try {
+            return UUID.fromString(param);
+        } catch (IllegalArgumentException iae) {
+            throw new BadRequestException(param + " was not a valid uuid", iae);
+        }
+    }
+
     private Execution getExecutionOrThrow(ServerRequest request) throws NotFoundException {
-        var executionId = request.path().param("executionId");
-        var executionUUID = UUID.fromString(executionId);
+        var executionUUID = parseUUIDOrThrow(request, "executionId");
         if (!executionsMap.containsKey(executionUUID)) {
-            throw new NotFoundException("no execution with id " + executionId);
+            throw new NotFoundException("no execution with id " + executionUUID);
         }
         return executionsMap.get(executionUUID);
     }
 
     private AbstractJob getJobOrThrow(ServerRequest request) throws NotFoundException {
-        var jobId = request.path().param("jobId");
-        try {
-            var execution = getExecutionOrThrow(request);
-            var jobUUID = UUID.fromString(jobId);
-            var optionalJob = execution.getJobs().stream().filter(job -> {
-                return jobUUID.equals(job.getId());
-            }).findFirst();
-            return optionalJob.orElseThrow(() -> new NotFoundException("no job with id " + jobId));
-        } catch (IllegalArgumentException iae) {
-            throw new BadRequestException("could not parse uuid " + jobId, iae);
-        }
+        var execution = getExecutionOrThrow(request);
+        var jobUUID = parseUUIDOrThrow(request, "jobId");
+        var optionalJob = execution.getJobs().stream().filter(job -> {
+            return jobUUID.equals(job.getId());
+        }).findFirst();
+        return optionalJob.orElseThrow(() -> new NotFoundException("no job with id " + jobUUID));
     }
 
     private void doPostExecute(ServerRequest request, ServerResponse response, ExecutionRequest executionRequest) {
@@ -156,69 +171,34 @@ public class BlueprintExecutionService implements Service {
             repoName += ".git"; // URI from Blueprint service contains git extension
             String notebookPath = Objects.requireNonNull(node.get("notebook").asText(), "Notebook path is required");
 
-
-            String blueprintBaseUrl = config.get("blueprint.url").asString().get();
-            WebClient client = WebClient.builder()
-                    .baseUri(blueprintBaseUrl)
-                    .addMediaSupport(JacksonSupport.create(mapper))
-                    .build();
-
             // Get repositories from Blueprint
-            WebClientResponse repsRes = client.get()
-                    .path("repositories")
-                    .accept(MediaType.APPLICATION_JSON)
-                    .submit().get();
-            if (repsRes.status().equals(Http.Status.INTERNAL_SERVER_ERROR_500)) {
-                throw new HttpException(String.format("Error calling %s", repsRes.lastEndpointURI().toString()), repsRes.status());
-            }
-
+            var repositories = blueprintClient.getRepositories();
             // Find repoId from payload
-            String repoId = extractIdFromJsonArray(repoName, repsRes.content(), "uri");
+            var repository = repositories.stream().findFirst().orElseThrow();
 
             // Get latest commit from Blueprint
-            WebClientResponse commitsRes = client.get()
-                    .path(String.format("repositories/%s/commits", repoId))
-                    .accept(MediaType.APPLICATION_JSON)
-                    .submit().get();
-            if (commitsRes.status().equals(Http.Status.INTERNAL_SERVER_ERROR_500)) {
-                throw new HttpException(String.format("Error calling %s", commitsRes.lastEndpointURI().toString()), commitsRes.status());
-            }
-            // TODO pick first commit in list for now. We need a way to find latest commit, createdAt is for now null
-            JsonNode commits = commitsRes.content().as(JsonNode.class).toCompletableFuture().join();
-            String commitID = StreamSupport.stream(commits.spliterator(), false)
-                    .sorted(Comparator.comparing(jsonNode -> jsonNode.get("createdAt").asInt()))
-                    .map(jsonNode -> jsonNode.get("id").asText())
-                    .findFirst().orElseThrow();
-
+            var commits = blueprintClient.getCommits(repository.id);
+            var commit = commits.stream().min(Comparator.comparing(c -> c.createdAt)).orElseThrow();
 
             // Get all notebooks in given repo from Blueprint
-            LOG.debug("Fetching notebooks for repo {} with id {} and commitId {}", repoName, repoId, commitID);
-            WebClientResponse notebookRes = client.get()
-                    .path(String.format("repositories/%s/commits/%s/notebooks", repoId, commitID))
-                    .accept(MediaType.APPLICATION_JSON)
-                    .submit().get();
-            if (notebookRes.status().equals(Http.Status.INTERNAL_SERVER_ERROR_500)) {
-                throw new HttpException(String.format("Error calling %s", notebookRes.lastEndpointURI().toString()), notebookRes.status());
-            }
-            String notebookId = extractIdFromJsonArray(notebookPath, notebookRes.content(), "path");
+            LOG.debug("Fetching notebooks for repo {} with id {} and commitId {}", repoName, repository.id,
+                    commit.id);
+
+            var notebooks = blueprintClient.getNotebooks(repository.id, commit.id);
+            var notebook = notebooks.stream().filter(n -> notebookPath.equals(n.path))
+                    .findFirst().orElseThrow();
 
             // Get DAG based on given notebookId
-            WebClientResponse blueprintRes = client.get()
-                    .path(String.format("/repositories/%s/commits/%s/notebooks/%s", repoId, commitID, notebookId))
-                    .accept(MediaType.create(
-                            "application", "vnd.ssb.blueprint.dag+json"))
-                    .submit().get();
-            if (blueprintRes.status().equals(Http.Status.INTERNAL_SERVER_ERROR_500)) {
-                throw new HttpException(String.format("Error calling %s", blueprintRes.lastEndpointURI().toString()), blueprintRes.status());
-            }
-            JsonNode responseBody = blueprintRes.content().as(JsonNode.class).toCompletableFuture().join();
+            var notebookGraph = blueprintClient.getNotebookGraph(repository.id, commit.id, notebook.id);
 
             // get notebookID from request (use HEAD in v1)
             // call blueprint /repository/{repoID}/revisions/{head}/notebooks/{notebookID}
 
             // Build execution plan
-            ExecutionPlanCreator executionPlanCreator = new ExecutionPlanCreator(responseBody);
-            List<String> executionPlan = executionPlanCreator.createExecutionPlan();
+            ExecutionPlanCreator executionPlanCreator = new ExecutionPlanCreator(notebookGraph);
+            List<String> executionPlan = StreamSupport.stream(executionPlanCreator.spliterator(), false)
+                    .map(n -> n.fetchUrl)
+                    .collect(Collectors.toList());
 
             // Build k8s job list
             List<K8sExecutionJob> k8sExecutionJobs = new ArrayList<>();

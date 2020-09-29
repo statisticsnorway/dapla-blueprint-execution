@@ -1,6 +1,7 @@
 package no.ssb.dapla.blueprintexecution.model;
 
 import io.helidon.common.reactive.Single;
+import no.ssb.dapla.blueprintexecution.blueprint.NotebookDetail;
 
 import java.util.concurrent.Executor;
 
@@ -10,9 +11,9 @@ import java.util.concurrent.Executor;
 public class KubernetesJob extends AbstractJob {
 
     private final Executor executor;
-    private final Notebook notebook;
+    private final NotebookDetail notebook;
 
-    public KubernetesJob(Executor executor, Notebook notebook) {
+    public KubernetesJob(Executor executor, NotebookDetail notebook) {
         this.executor = executor;
         this.notebook = notebook;
     }
