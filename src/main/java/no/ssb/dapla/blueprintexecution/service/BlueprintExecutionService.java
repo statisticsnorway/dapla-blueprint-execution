@@ -9,23 +9,18 @@ import io.helidon.media.common.MessageBodyReadableContent;
 import io.helidon.media.jackson.JacksonSupport;
 import io.helidon.webclient.WebClient;
 import io.helidon.webclient.WebClientResponse;
-import io.helidon.webserver.Handler;
-import io.helidon.webserver.HttpException;
-import io.helidon.webserver.Routing;
-import io.helidon.webserver.ServerRequest;
-import io.helidon.webserver.ServerResponse;
-import io.helidon.webserver.Service;
+import io.helidon.webserver.*;
 import no.ssb.dapla.blueprintexecution.k8s.K8sExecutionJob;
+import no.ssb.dapla.blueprintexecution.model.Execution;
 import no.ssb.dapla.blueprintexecution.model.ExecutionPlanCreator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.List;
-import java.util.Objects;
+import java.util.*;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executor;
+import java.util.concurrent.Executors;
 import java.util.stream.StreamSupport;
 
 
@@ -35,6 +30,12 @@ public class BlueprintExecutionService implements Service {
 
     private final Config config;
     private final ObjectMapper mapper = new ObjectMapper();
+
+    // Keep all the executions in memory for now.
+    private final Map<String, Execution> executionsMap = new LinkedHashMap<>();
+
+    // Executes the jobs.
+    private final Executor jobExecutor = Executors.newCachedThreadPool();
 
     public BlueprintExecutionService(Config config) {
         this.config = config;
@@ -138,7 +139,6 @@ public class BlueprintExecutionService implements Service {
             // Build execution plan
             ExecutionPlanCreator executionPlanCreator = new ExecutionPlanCreator(responseBody);
             List<String> executionPlan = executionPlanCreator.createExecutionPlan();
-
 
             // Build k8s job list
             List<K8sExecutionJob> k8sExecutionJobs = new ArrayList<>();
