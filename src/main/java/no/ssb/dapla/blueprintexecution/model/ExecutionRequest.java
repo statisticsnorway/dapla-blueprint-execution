@@ -1,7 +1,9 @@
 package no.ssb.dapla.blueprintexecution.model;
 
-public class ExecutionRequest {
+import java.util.Set;
 
-    public String repo;
-    public String notebookPath;
+public class ExecutionRequest {
+    public String repositoryId;
+    public String commitId;
+    public Set<String> notebookIds;
 }

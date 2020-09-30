@@ -12,9 +12,9 @@ public class Execution {
 
     private final UUID id = UUID.randomUUID();
     private final List<AbstractJob> jobs = new LinkedList<>();
-    private String startedBy;
+    private final Instant createdAt = Instant.now();
     private Instant startedAt;
-    private Instant createdAt = Instant.now();
+    private String startedBy;
     private Status status = Status.Ready;
 
     public UUID getId() {

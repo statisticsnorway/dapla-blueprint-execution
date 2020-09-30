@@ -4,21 +4,17 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.helidon.common.http.Http;
 import io.helidon.common.http.MediaType;
+import io.helidon.common.reactive.Multi;
+import io.helidon.common.reactive.Single;
 import io.helidon.config.Config;
 import io.helidon.media.common.MessageBodyReadableContent;
 import io.helidon.media.jackson.JacksonSupport;
 import io.helidon.webclient.WebClient;
 import io.helidon.webclient.WebClientResponse;
 import io.helidon.webserver.*;
-import no.ssb.dapla.blueprintexecution.blueprint.BlueprintClient;
-import no.ssb.dapla.blueprintexecution.blueprint.Commit;
-import no.ssb.dapla.blueprintexecution.blueprint.Notebook;
-import no.ssb.dapla.blueprintexecution.blueprint.NotebookGraph;
+import no.ssb.dapla.blueprintexecution.blueprint.*;
 import no.ssb.dapla.blueprintexecution.k8s.K8sExecutionJob;
-import no.ssb.dapla.blueprintexecution.model.AbstractJob;
-import no.ssb.dapla.blueprintexecution.model.Execution;
-import no.ssb.dapla.blueprintexecution.model.ExecutionPlanCreator;
-import no.ssb.dapla.blueprintexecution.model.ExecutionRequest;
+import no.ssb.dapla.blueprintexecution.model.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -27,6 +23,7 @@ import java.net.URI;
 import java.util.*;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
@@ -43,7 +40,7 @@ public class BlueprintExecutionService implements Service {
     private final Map<UUID, Execution> executionsMap = new LinkedHashMap<>();
 
     // Executes the jobs.
-    private final Executor jobExecutor = Executors.newCachedThreadPool();
+    private final ExecutorService jobExecutor = Executors.newCachedThreadPool();
 
     // Http blueprint client.
     private final BlueprintClient blueprintClient;
@@ -95,11 +92,54 @@ public class BlueprintExecutionService implements Service {
     }
 
     private void doPostExecute(ServerRequest request, ServerResponse response, ExecutionRequest executionRequest) {
-        var execution = new Execution();
-        executionsMap.put(execution.getId(), execution);
-        response.headers().location(URI.create("/api/v1/execution/" + execution.getId()));
-        response.status(Http.Status.CREATED_201);
-        response.send();
+
+        try {
+            NotebookGraph graph = blueprintClient.getNotebookGraph(executionRequest.repositoryId, executionRequest.commitId,
+                    executionRequest.notebookIds);
+
+            ExecutionPlanCreator executionPlanCreator = new ExecutionPlanCreator(graph);
+
+            var execution = new Execution();
+
+            // Convert all the notebooks
+            Map<NotebookDetail, KubernetesJob> jobs = new LinkedHashMap<>();
+            for (NotebookDetail notebook : executionPlanCreator) {
+                jobs.put(notebook, new KubernetesJob(jobExecutor, notebook, config));
+            }
+
+            // Second pass to setup dependencies.
+            for (NotebookDetail notebook : jobs.keySet()) {
+                KubernetesJob job = jobs.get(notebook);
+                for (NotebookDetail descendant : executionPlanCreator.getAncestors(notebook)) {
+                    job.addPrevious(jobs.get(descendant));
+                }
+            }
+
+            // Find the last jobs
+            List<KubernetesJob> startingJobs = new ArrayList<>();
+            for (NotebookDetail notebook : jobs.keySet()) {
+                if (executionPlanCreator.getOutDegreeOf(notebook) == 0) {
+                    startingJobs.add(jobs.get(notebook));
+                }
+            }
+
+            execution.getJobs().addAll(jobs.values());
+
+            // TODO: Start execution.
+            var done = Multi.create(startingJobs.stream())
+                    .flatMap(AbstractJob::executeJob)
+                    .collectList()
+                    .get();
+
+            executionsMap.put(execution.getId(), execution);
+            response.headers().location(URI.create("/api/v1/execution/" + execution.getId()));
+            response.status(Http.Status.CREATED_201);
+            response.send();
+        } catch (ExecutionException | InterruptedException e) {
+            response.status(Http.Status.INTERNAL_SERVER_ERROR_500).send(e);
+        }
+
+
     }
 
     private void doGetExecution(ServerRequest request, ServerResponse response) {

@@ -44,7 +44,7 @@ public abstract class AbstractJob {
     /**
      * Execute this job after all the previous jobs are done.
      */
-    public final Single<AbstractJob> executeJob() {
+    public final synchronized Single<AbstractJob> executeJob() {
         return getPreviousExecution().collectList().flatMapSingle(jobNodes -> getCurrentExecution());
     }
 

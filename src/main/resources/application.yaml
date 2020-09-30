@@ -15,13 +15,11 @@ k8s:
     image: "eu.gcr.io/prod-bip/ssb/dapla/dapla-jupyterlab:master-35989879b39e8fdf06e971c29f2de7678c1180cc"
 
 blueprint:
-  url: http://localhost:10170/api/v1
+  url: https://blueprint.staging-bip-app.ssb.no/api/v1
 
 health:
   readiness:
     idle-timeout: 2000
-
-
 
 tracing:
   enabled: true

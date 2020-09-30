@@ -28,6 +28,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 
 import java.net.URI;
 import java.util.Collections;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -54,8 +55,8 @@ public class BlueprintExecutionServiceTest {
     @Test
     URI testCreateExecution() {
         var request = new ExecutionRequest();
-        request.notebookPath = "/foo/bar";
-        request.repo = "https://example.com";
+        request.notebookIds = Set.of("/foo/bar");
+        request.repositoryId = "https://example.com";
         var response = client.post().path("/api/v1/execute").submit(request).await();
         assertThat(response.status()).isEqualTo(Http.Status.CREATED_201);
         assertThat(response.headers().location()).isNotEmpty();
@@ -110,7 +111,6 @@ public class BlueprintExecutionServiceTest {
             Container jupyterLabContainer = new ContainerBuilder()
                     .withName(podName)
                     .withImage("eu.gcr.io/prod-bip/ssb/dapla/dapla-jupyterlab:master-35989879b39e8fdf06e971c29f2de7678c1180cc")
-//                    .withCommand("papermill /notebook/test.ipynb /notebook/test_result.ipynb -k pyspark_k8s")
                     .withCommand("ls")
                     .addNewVolumeMount()
                     .withName("notebooks")

@@ -9,11 +9,12 @@ import org.jgrapht.traverse.TopologicalOrderIterator;
 
 import java.util.Iterator;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 public class ExecutionPlanCreator implements Iterable<NotebookDetail> {
 
-    private final Graph<NotebookDetail, DefaultEdge> dag;
+    private final DirectedAcyclicGraph<NotebookDetail, DefaultEdge> dag;
 
     public ExecutionPlanCreator(NotebookGraph graph) {
         Map<String, NotebookDetail> notebookById = graph.nodes.stream()
@@ -31,5 +32,21 @@ public class ExecutionPlanCreator implements Iterable<NotebookDetail> {
     @Override
     public Iterator<NotebookDetail> iterator() {
         return new TopologicalOrderIterator<>(dag);
+    }
+
+    public Set<NotebookDetail> getAncestors(NotebookDetail notebook) {
+        return dag.getAncestors(notebook);
+    }
+
+    public Set<NotebookDetail> getDescendants(NotebookDetail notebook) {
+        return dag.getDescendants(notebook);
+    }
+
+    public int getOutDegreeOf(NotebookDetail notebook) {
+        return dag.outDegreeOf(notebook);
+    }
+
+    public int getInDegreeOf(NotebookDetail notebook) {
+        return dag.inDegreeOf(notebook);
     }
 }
