@@ -10,6 +10,8 @@ import io.helidon.webserver.Routing;
 import io.helidon.webserver.WebServer;
 import io.helidon.webserver.WebTracingConfig;
 import io.helidon.webserver.accesslog.AccessLogSupport;
+import io.helidon.webserver.cors.CorsSupport;
+import io.helidon.webserver.cors.CrossOriginConfig;
 import no.ssb.dapla.blueprintexecution.service.BlueprintExecutionService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -45,18 +47,21 @@ public class BlueprintExecutionApplication {
                 .build();
         MetricsSupport metrics = MetricsSupport.create();
 
-        // routing
+        CorsSupport.Builder corsSupport = CorsSupport.builder();
+
+        config.get("cors").ifExists(corsSupport::config);
+        corsSupport.addCrossOrigin(CrossOriginConfig.create());
+
         Routing routing = Routing.builder()
                 .register(AccessLogSupport.create(config.get("webserver.access-log")))
                 .register(WebTracingConfig.create(config.get("tracing")))
                 .register(health)
                 .register(metrics)
-                .register("/api/v1", new BlueprintExecutionService(config))
+                .register("/api/v1", corsSupport.build(), new BlueprintExecutionService(config))
                 .build();
 
         put(Routing.class, routing);
 
-        // web-server
         var webServer = WebServer.builder();
         webServer.routing(routing)
                 .config(config.get("webserver"))

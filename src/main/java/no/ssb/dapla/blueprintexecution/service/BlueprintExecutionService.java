@@ -133,13 +133,11 @@ public class BlueprintExecutionService implements Service {
                         .onCancel(execution::setCancelled)
                         .await();
             }, jobExecutor);
-
-            var done =
-
             executionsMap.put(execution.getId(), execution);
+
             response.headers().location(URI.create("/api/v1/execution/" + execution.getId()));
             response.status(Http.Status.CREATED_201);
-            response.send();
+            response.send(execution);
         } catch (ExecutionException | InterruptedException e) {
             response.status(Http.Status.INTERNAL_SERVER_ERROR_500).send(e);
         }
