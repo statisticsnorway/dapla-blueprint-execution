@@ -21,10 +21,7 @@ import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.net.URI;
 import java.util.*;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Executor;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.concurrent.*;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
@@ -125,11 +122,19 @@ public class BlueprintExecutionService implements Service {
 
             execution.getJobs().addAll(jobs.values());
 
-            // TODO: Start execution.
-            var done = Multi.create(startingJobs.stream())
-                    .flatMap(AbstractJob::executeJob)
-                    .collectList()
-                    .get();
+            // TODO: Move to correct methods.
+            // Start the execution in another "control" thread.
+            CompletableFuture.runAsync(() -> {
+                Multi.create(startingJobs.stream())
+                        .flatMap(AbstractJob::executeJob)
+                        .collectList()
+                        .onComplete(execution::setDone)
+                        .onError(execution::setFailed)
+                        .onCancel(execution::setCancelled)
+                        .await();
+            }, jobExecutor);
+
+            var done =
 
             executionsMap.put(execution.getId(), execution);
             response.headers().location(URI.create("/api/v1/execution/" + execution.getId()));
@@ -152,7 +157,7 @@ public class BlueprintExecutionService implements Service {
         if (execution.getStatus() != Execution.Status.Ready) {
             response.status(Http.Status.CONFLICT_409).send("Not ready");
         } else {
-            execution.startAll();
+            execution.setRunning();
             response.status(Http.Status.NO_CONTENT_204).send();
         }
     }
@@ -162,7 +167,7 @@ public class BlueprintExecutionService implements Service {
         if (execution.getStatus() != Execution.Status.Running) {
             response.status(Http.Status.CONFLICT_409).send("Not running");
         } else {
-            execution.cancelAll();
+            execution.setCancelled();
             response.status(Http.Status.NO_CONTENT_204).send();
         }
     }

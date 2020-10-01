@@ -14,8 +14,22 @@ public class Execution {
     private final List<AbstractJob> jobs = new LinkedList<>();
     private final Instant createdAt = Instant.now();
     private Instant startedAt;
+    private Instant endedAt;
     private String startedBy;
     private Status status = Status.Ready;
+    private Throwable exception;
+
+    public Instant getCreatedAt() {
+        return createdAt;
+    }
+
+    public Instant getEndedAt() {
+        return endedAt;
+    }
+
+    public Throwable getException() {
+        return exception;
+    }
 
     public UUID getId() {
         return id;
@@ -45,12 +59,25 @@ public class Execution {
         return status;
     }
 
-    public void startAll() {
+    public void setRunning() {
+        startedAt = Instant.now();
         status = Status.Running;
     }
 
-    public void cancelAll() {
+    public void setCancelled() {
+        endedAt = Instant.now();
         status = Status.Cancelled;
+    }
+
+    public void setFailed(Throwable t) {
+        endedAt = Instant.now();
+        status = Status.Failed;
+        exception = t;
+    }
+
+    public void setDone() {
+        endedAt = Instant.now();
+        status = Status.Done;
     }
 
     public enum Status {

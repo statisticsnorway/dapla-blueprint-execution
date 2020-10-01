@@ -3,6 +3,7 @@ package no.ssb.dapla.blueprintexecution.model;
 import io.fabric8.kubernetes.api.model.batch.Job;
 import io.helidon.common.reactive.Single;
 import io.helidon.config.Config;
+import no.ssb.dapla.blueprintexecution.blueprint.Notebook;
 import no.ssb.dapla.blueprintexecution.blueprint.NotebookDetail;
 import no.ssb.dapla.blueprintexecution.k8s.K8sExecutionJob;
 import org.slf4j.Logger;
@@ -31,7 +32,7 @@ public class KubernetesJob extends AbstractJob {
         this.config = Objects.requireNonNull(config);
     }
 
-    public NotebookDetail getNotebook() {
+    public Notebook getNotebook() {
         return notebook;
     }
 
@@ -52,8 +53,7 @@ public class KubernetesJob extends AbstractJob {
             }
             log.info("Done executing the notebook {} (id {})", notebook.path, notebook.id);
             return this;
-
-        });
+        }, executor);
         return Single.create(future);
     }
 

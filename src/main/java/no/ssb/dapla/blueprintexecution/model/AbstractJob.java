@@ -1,8 +1,10 @@
 package no.ssb.dapla.blueprintexecution.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import io.helidon.common.reactive.Multi;
 import io.helidon.common.reactive.Single;
 
+import java.time.Instant;
 import java.util.*;
 
 public abstract class AbstractJob {
@@ -14,6 +16,10 @@ public abstract class AbstractJob {
 
     private Multi<AbstractJob> previousExecution;
     private Single<AbstractJob> currentExecution;
+    private Execution.Status status = Execution.Status.Ready;
+    private Instant startedAt;
+    private Instant endedAt;
+    private Throwable exception;
 
     protected AbstractJob(AbstractJob... previousNodes) {
         List<AbstractJob> previousNodesList = Arrays.asList(Objects.requireNonNull(previousNodes));
@@ -23,10 +29,48 @@ public abstract class AbstractJob {
         }
     }
 
+    public Execution.Status getStatus() {
+        return status;
+    }
+
+    public Instant getStartedAt() {
+        return startedAt;
+    }
+
+    public Instant getEndedAt() {
+        return endedAt;
+    }
+
+    public Throwable getException() {
+        return exception;
+    }
+
     public UUID getId() {
         return id;
     }
 
+    private void setRunning() {
+        status = Execution.Status.Running;
+        startedAt = Instant.now();
+    }
+
+    private void setFailed(Throwable t) {
+        status = Execution.Status.Failed;
+        endedAt = Instant.now();
+        exception = t;
+    }
+
+    private void setDone() {
+        status = Execution.Status.Done;
+        endedAt = Instant.now();
+    }
+
+    private void setCancelled() {
+        status = Execution.Status.Cancelled;
+        endedAt = Instant.now();
+    }
+
+    @JsonIgnore
     public synchronized Multi<AbstractJob> getPreviousExecution() {
         if (previousExecution == null) {
             previousExecution = Multi.create(previousNodes).flatMap(AbstractJob::executeJob);
@@ -34,6 +78,7 @@ public abstract class AbstractJob {
         return previousExecution;
     }
 
+    @JsonIgnore
     public synchronized Single<AbstractJob> getCurrentExecution() {
         if (currentExecution == null) {
             currentExecution = startJob();
@@ -44,8 +89,15 @@ public abstract class AbstractJob {
     /**
      * Execute this job after all the previous jobs are done.
      */
+    @JsonIgnore
     public final synchronized Single<AbstractJob> executeJob() {
-        return getPreviousExecution().collectList().flatMapSingle(jobNodes -> getCurrentExecution());
+        return getPreviousExecution()
+                .collectList()
+                .onComplete(this::setRunning)
+                .flatMapSingle(jobNodes -> getCurrentExecution())
+                .onCancel(this::setCancelled)
+                .onError(this::setFailed)
+                .onComplete(this::setDone);
     }
 
     protected abstract Single<AbstractJob> startJob();
