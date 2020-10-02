@@ -49,7 +49,7 @@ class KubernetesJobTest {
                 "blueprint.url", "https://example.com//"
         )));
 
-        KubernetesJob kubernetesJob = new KubernetesJob(Executors.newSingleThreadExecutor(), detail, config);
+        KubernetesJob kubernetesJob = new KubernetesJob(Executors.newSingleThreadExecutor(), detail, config, null);
         Job job = kubernetesJob.buildJob();
         Job expectedJob = yamlMapper.readValue(
                 getClass().getResource("expected_job.yaml"),

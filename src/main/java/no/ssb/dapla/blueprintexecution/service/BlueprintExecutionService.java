@@ -2,15 +2,12 @@ package no.ssb.dapla.blueprintexecution.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.fabric8.kubernetes.client.DefaultKubernetesClient;
+import io.fabric8.kubernetes.client.KubernetesClient;
 import io.helidon.common.http.Http;
-import io.helidon.common.http.MediaType;
 import io.helidon.common.reactive.Multi;
-import io.helidon.common.reactive.Single;
 import io.helidon.config.Config;
 import io.helidon.media.common.MessageBodyReadableContent;
-import io.helidon.media.jackson.JacksonSupport;
-import io.helidon.webclient.WebClient;
-import io.helidon.webclient.WebClientResponse;
 import io.helidon.webserver.*;
 import no.ssb.dapla.blueprintexecution.blueprint.*;
 import no.ssb.dapla.blueprintexecution.k8s.K8sExecutionJob;
@@ -30,6 +27,7 @@ public class BlueprintExecutionService implements Service {
 
     private static final Logger LOG = LoggerFactory.getLogger(BlueprintExecutionService.class);
 
+
     private final Config config;
     private final ObjectMapper mapper = new ObjectMapper();
 
@@ -41,6 +39,8 @@ public class BlueprintExecutionService implements Service {
 
     // Http blueprint client.
     private final BlueprintClient blueprintClient;
+
+    private final KubernetesClient client = new DefaultKubernetesClient();
 
     public BlueprintExecutionService(Config config) {
         this.config = config;
@@ -101,7 +101,7 @@ public class BlueprintExecutionService implements Service {
             // Convert all the notebooks
             Map<NotebookDetail, KubernetesJob> jobs = new LinkedHashMap<>();
             for (NotebookDetail notebook : executionPlanCreator) {
-                jobs.put(notebook, new KubernetesJob(jobExecutor, notebook, config));
+                jobs.put(notebook, new KubernetesJob(jobExecutor, notebook, config, client));
             }
 
             // Second pass to setup dependencies.

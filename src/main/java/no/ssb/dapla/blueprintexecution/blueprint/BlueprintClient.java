@@ -16,10 +16,10 @@ public class BlueprintClient {
 
     private static final String BLUEPRINT_URL = "blueprint.url";
 
-    private static final String REPOSITORIES_PATH = "repositories";
-    private static final String COMMITS_PATH = "repositories/%s/commits";
-    private static final String NOTEBOOKS_PATH = "repositories/%s/commits/%s/notebooks";
-    private static final String NOTEBOOK_PATH = "repositories/%s/commits/%s/notebooks/%s";
+    private static final String REPOSITORIES_PATH = "/api/v1/repositories";
+    private static final String COMMITS_PATH = "/api/v1/repositories/%s/commits";
+    private static final String NOTEBOOKS_PATH = "/api/v1/repositories/%s/commits/%s/notebooks";
+    private static final String NOTEBOOK_PATH = "/api/v1/repositories/%s/commits/%s/notebooks/%s";
 
     private static final GenericType<List<Repository>> REPOSITORY_LIST = new GenericType<>() {
     };

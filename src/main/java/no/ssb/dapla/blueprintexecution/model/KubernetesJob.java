@@ -1,6 +1,7 @@
 package no.ssb.dapla.blueprintexecution.model;
 
 import io.fabric8.kubernetes.api.model.batch.Job;
+import io.fabric8.kubernetes.client.KubernetesClient;
 import io.helidon.common.reactive.Single;
 import io.helidon.config.Config;
 import no.ssb.dapla.blueprintexecution.blueprint.Notebook;
@@ -13,6 +14,8 @@ import java.util.Objects;
 import java.util.Random;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
+import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 /**
  * Represent the execution of a notebook job
@@ -24,12 +27,14 @@ public class KubernetesJob extends AbstractJob {
 
     private final Executor executor;
     private final NotebookDetail notebook;
+    private final KubernetesClient client;
     private final Config config;
 
-    public KubernetesJob(Executor executor, NotebookDetail notebook, Config config) {
+    public KubernetesJob(Executor executor, NotebookDetail notebook, Config config, KubernetesClient client) {
         this.executor = Objects.requireNonNull(executor);
         this.notebook = Objects.requireNonNull(notebook);
         this.config = Objects.requireNonNull(config);
+        this.client = client;
     }
 
     public Notebook getNotebook() {
@@ -42,19 +47,69 @@ public class KubernetesJob extends AbstractJob {
 
     @Override
     protected Single<AbstractJob> startJob() {
-        // TODO: Actual execution.
-        log.info("Submitting notebook {} (id {}) for execution", notebook.path, notebook.id);
-        CompletableFuture<AbstractJob> future = CompletableFuture.supplyAsync(() -> {
+
+        var future = CompletableFuture.supplyAsync(() -> {
+            var jobToCreate = buildJob();
+
             try {
-                log.info("Starting execution of the notebook {} (id {})", notebook.path, notebook.id);
-                Thread.sleep((random.nextInt(10) + 5) * 1000);
+
+
+
+                log.info("Submitting job {} in namespace {}",
+                        jobToCreate.getMetadata().getName(),
+                        jobToCreate.getMetadata().getNamespace()
+                );
+
+                var job = client.batch().jobs().inNamespace(jobToCreate.getMetadata().getNamespace())
+                        .createOrReplace(jobToCreate);
+
+                var jobName = job.getMetadata().getName();
+                var jobUid = job.getMetadata().getUid();
+                var jobNamespace = jobToCreate.getMetadata().getNamespace();
+                var jobClusterName = job.getMetadata().getClusterName();
+
+                // Jobs create pods with a job-name label.
+                var podNames = client.pods().inNamespace(job.getMetadata().getNamespace())
+                        .withLabel("job-name", job.getMetadata().getName())
+                        .list().getItems().stream().map(pod -> pod.getMetadata().getName())
+                        .collect(Collectors.toList());
+
+                log.info("Created job {}({}) in cluster {}\n{}", jobName, jobUid,
+                        jobClusterName, podNames);
+
+
+                client.pods().inNamespace(jobNamespace).withName(podNames.get(0))
+                        .waitUntilCondition(pod -> {
+                            return pod.getStatus().getPhase().equals("Succeeded") || pod.getStatus().getPhase().equals("Error");
+                        }, 10, TimeUnit.HOURS);
+
+                log.info("Done executing job ({}) {} in cluster {}\n{}", jobName, jobUid,
+                        jobClusterName, podNames);
+
             } catch (InterruptedException e) {
-                e.printStackTrace();
+                log.error("Thread interrupted!", e);
+                Thread.currentThread().interrupt();
+            } catch (Exception ex) {
+                log.error("Failed to execute job", ex);
+                throw ex;
             }
-            log.info("Done executing the notebook {} (id {})", notebook.path, notebook.id);
+
             return this;
         }, executor);
-        return Single.create(future);
+
+//        // TODO: Actual execution.
+//        log.info("Submitting notebook {} (id {}) for execution", notebook.path, notebook.id);
+//        CompletableFuture<AbstractJob> future = CompletableFuture.supplyAsync(() -> {
+//            try {
+//                log.info("Starting execution of the notebook {} (id {})", notebook.path, notebook.id);
+//                Thread.sleep((random.nextInt(10) + 5) * 1000);
+//            } catch (InterruptedException e) {
+//                e.printStackTrace();
+//            }
+//            log.info("Done executing the notebook {} (id {})", notebook.path, notebook.id);
+//            return this;
+//        }, executor);
+        return Single.create(future).map(kubernetesJob -> this);
     }
 
     Job buildJob() {

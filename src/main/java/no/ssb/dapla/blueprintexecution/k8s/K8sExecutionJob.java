@@ -136,6 +136,7 @@ public class K8sExecutionJob {
                 .withNewMetadata()
                 .withName(getPodPrefix() + "-job")
                 .withLabels(Collections.singletonMap("label1", "execute_notebook_dag"))
+                .withNamespace(getNamespace())
                 .endMetadata()
                 .withNewSpec()
                 .withNewTemplate()
