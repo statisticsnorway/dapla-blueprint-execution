@@ -1,11 +1,13 @@
 package no.ssb.dapla.blueprintexecution.k8s;
 
 import io.fabric8.kubernetes.api.model.*;
+import io.fabric8.kubernetes.api.model.batch.DoneableJob;
 import io.fabric8.kubernetes.api.model.batch.Job;
 import io.fabric8.kubernetes.api.model.batch.JobBuilder;
 import io.fabric8.kubernetes.client.DefaultKubernetesClient;
 import io.fabric8.kubernetes.client.KubernetesClient;
 import io.fabric8.kubernetes.client.KubernetesClientException;
+import io.fabric8.kubernetes.client.dsl.ScalableResource;
 import io.helidon.config.Config;
 import no.ssb.dapla.blueprintexecution.blueprint.NotebookDetail;
 import org.slf4j.Logger;
@@ -102,7 +104,6 @@ public class K8sExecutionJob {
                     .waitUntilCondition(pod -> pod.getStatus().getPhase().equals("Succeeded") || pod.getStatus().getPhase().equals("Error"),
                             20, TimeUnit.SECONDS);
             this.jobLog = client.batch().jobs().inNamespace(getNamespace()).withName(getPodPrefix() + "-job").getLog();
-
             this.status = podList.getItems().get(0).getStatus();
 
         } catch (final KubernetesClientException e) {

@@ -14,11 +14,29 @@ public class Execution {
     private final List<AbstractJob> jobs = new LinkedList<>();
     private final List<AbstractJob> startingJobs = new LinkedList<>();
     private final Instant createdAt = Instant.now();
+    private String commitId;
+    private String repositoryId;
     private Instant startedAt;
     private Instant endedAt;
     private String startedBy;
     private Status status = Status.Ready;
     private Throwable exception;
+
+    public String getRepositoryId() {
+        return repositoryId;
+    }
+
+    public void setRepositoryId(String repositoryId) {
+        this.repositoryId = repositoryId;
+    }
+
+    public String getCommitId() {
+        return commitId;
+    }
+
+    public void setCommitId(String commitId) {
+        this.commitId = commitId;
+    }
 
     public List<AbstractJob> getStartingJobs() {
         return startingJobs;

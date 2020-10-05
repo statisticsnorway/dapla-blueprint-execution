@@ -11,7 +11,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.Objects;
-import java.util.Random;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
@@ -23,7 +22,6 @@ import java.util.stream.Collectors;
 public class KubernetesJob extends AbstractJob {
 
     private static final Logger log = LoggerFactory.getLogger(KubernetesJob.class);
-    private static final Random random = new Random();
 
     private final Executor executor;
     private final NotebookDetail notebook;

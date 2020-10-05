@@ -9,7 +9,9 @@ import io.helidon.common.reactive.Multi;
 import io.helidon.config.Config;
 import io.helidon.media.common.MessageBodyReadableContent;
 import io.helidon.webserver.*;
-import no.ssb.dapla.blueprintexecution.blueprint.*;
+import no.ssb.dapla.blueprintexecution.blueprint.BlueprintClient;
+import no.ssb.dapla.blueprintexecution.blueprint.NotebookDetail;
+import no.ssb.dapla.blueprintexecution.blueprint.NotebookGraph;
 import no.ssb.dapla.blueprintexecution.k8s.K8sExecutionJob;
 import no.ssb.dapla.blueprintexecution.model.*;
 import org.slf4j.Logger;
@@ -18,7 +20,10 @@ import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.net.URI;
 import java.util.*;
-import java.util.concurrent.*;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
@@ -56,6 +61,8 @@ public class BlueprintExecutionService implements Service {
                 .post("/execution", Handler.create(ExecutionRequest.class, this::doPostExecute))
                 // Edit the execution (add remove notebooks)
                 .put("/execution/{executionId}", Handler.create(ExecutionRequest.class, this::doPutExecution))
+                // Get the executions
+                .get("/execution", this::doGetExecutions)
                 // Get the execution
                 .get("/execution/{executionId}", this::doGetExecution)
                 // Start the execution
@@ -70,6 +77,10 @@ public class BlueprintExecutionService implements Service {
                 .put("/execution/{executionId}/job/{jobId}/cancel", this::doPutExecutionJobCancel)
 
                 .put("/execute", Handler.create(byte[].class, this::doExecute));
+    }
+
+    private void doGetExecutions(ServerRequest request, ServerResponse response) {
+        response.status(Http.Status.OK_200).send(executionsMap.values());
     }
 
     private UUID parseUUIDOrThrow(ServerRequest request, String name) throws BadRequestException {
@@ -98,39 +109,45 @@ public class BlueprintExecutionService implements Service {
         return optionalJob.orElseThrow(() -> new NotFoundException("no job with id " + jobUUID));
     }
 
+    private void setupExecution(Execution execution, ExecutionRequest executionRequest) throws ExecutionException, InterruptedException {
+
+        execution.setCommitId(executionRequest.commitId);
+        execution.setRepositoryId(executionRequest.repositoryId);
+
+        NotebookGraph graph = blueprintClient.getNotebookGraph(executionRequest.repositoryId, executionRequest.commitId,
+                executionRequest.notebookIds);
+
+        ExecutionPlanCreator executionPlanCreator = new ExecutionPlanCreator(graph);
+
+        // Convert all the notebooks
+        Map<NotebookDetail, KubernetesJob> jobs = new LinkedHashMap<>();
+        for (NotebookDetail notebook : executionPlanCreator) {
+            jobs.put(notebook, new KubernetesJob(jobExecutor, notebook, config, client));
+        }
+
+        // Second pass to setup dependencies.
+        for (NotebookDetail notebook : jobs.keySet()) {
+            KubernetesJob job = jobs.get(notebook);
+            for (NotebookDetail descendant : executionPlanCreator.getAncestors(notebook)) {
+                job.addPrevious(jobs.get(descendant));
+            }
+        }
+
+        // Find the last jobs
+        for (NotebookDetail notebook : jobs.keySet()) {
+            if (executionPlanCreator.getOutDegreeOf(notebook) == 0) {
+                execution.addStartingJob(jobs.get(notebook));
+            }
+        }
+
+        execution.getJobs().addAll(jobs.values());
+    }
+
     private void doPostExecute(ServerRequest request, ServerResponse response, ExecutionRequest executionRequest) {
 
         try {
-            NotebookGraph graph = blueprintClient.getNotebookGraph(executionRequest.repositoryId, executionRequest.commitId,
-                    executionRequest.notebookIds);
-
-            ExecutionPlanCreator executionPlanCreator = new ExecutionPlanCreator(graph);
-
             var execution = new Execution();
-
-            // Convert all the notebooks
-            Map<NotebookDetail, KubernetesJob> jobs = new LinkedHashMap<>();
-            for (NotebookDetail notebook : executionPlanCreator) {
-                jobs.put(notebook, new KubernetesJob(jobExecutor, notebook, config, client));
-            }
-
-            // Second pass to setup dependencies.
-            for (NotebookDetail notebook : jobs.keySet()) {
-                KubernetesJob job = jobs.get(notebook);
-                for (NotebookDetail descendant : executionPlanCreator.getAncestors(notebook)) {
-                    job.addPrevious(jobs.get(descendant));
-                }
-            }
-
-            // Find the last jobs
-            for (NotebookDetail notebook : jobs.keySet()) {
-                if (executionPlanCreator.getOutDegreeOf(notebook) == 0) {
-                    execution.addStartingJob(jobs.get(notebook));
-                }
-            }
-
-            execution.getJobs().addAll(jobs.values());
-
+            setupExecution(execution, executionRequest);
             executionsMap.put(execution.getId(), execution);
 
             response.headers().location(URI.create("/api/v1/execution/" + execution.getId()));
@@ -143,16 +160,20 @@ public class BlueprintExecutionService implements Service {
 
     }
 
-
     private void doPutExecution(ServerRequest request, ServerResponse response, ExecutionRequest executionRequest) {
         var execution = getExecutionOrThrow(request);
         if (execution.getStatus() != Execution.Status.Ready) {
             response.status(Http.Status.CONFLICT_409).send("Cannot change a started execution");
         } else {
-            // Maybe check that repositoryId and commitId are the same?
+            // TODO: Maybe check that repositoryId and commitId are the same?
+            try {
+                // Modify the execution.
+                setupExecution(execution, executionRequest);
+                response.status(Http.Status.OK_200).send(execution);
 
-            // Modify the execution.
-
+            } catch (ExecutionException | InterruptedException e) {
+                response.status(Http.Status.INTERNAL_SERVER_ERROR_500).send(e);
+            }
         }
     }
 
