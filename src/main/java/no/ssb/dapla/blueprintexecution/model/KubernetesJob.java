@@ -47,13 +47,10 @@ public class KubernetesJob extends AbstractJob {
 
     @Override
     protected Single<AbstractJob> startJob() {
-
         var future = CompletableFuture.supplyAsync(() -> {
             var jobToCreate = buildJob();
 
             try {
-
-
 
                 log.info("Submitting job {} in namespace {}",
                         jobToCreate.getMetadata().getName(),
@@ -73,6 +70,8 @@ public class KubernetesJob extends AbstractJob {
                         .withLabel("job-name", job.getMetadata().getName())
                         .list().getItems().stream().map(pod -> pod.getMetadata().getName())
                         .collect(Collectors.toList());
+
+                this.setRunning();
 
                 log.info("Created job {}({}) in cluster {}\n{}", jobName, jobUid,
                         jobClusterName, podNames);
@@ -97,19 +96,11 @@ public class KubernetesJob extends AbstractJob {
             return this;
         }, executor);
 
-//        // TODO: Actual execution.
-//        log.info("Submitting notebook {} (id {}) for execution", notebook.path, notebook.id);
-//        CompletableFuture<AbstractJob> future = CompletableFuture.supplyAsync(() -> {
-//            try {
-//                log.info("Starting execution of the notebook {} (id {})", notebook.path, notebook.id);
-//                Thread.sleep((random.nextInt(10) + 5) * 1000);
-//            } catch (InterruptedException e) {
-//                e.printStackTrace();
-//            }
-//            log.info("Done executing the notebook {} (id {})", notebook.path, notebook.id);
-//            return this;
-//        }, executor);
-        return Single.create(future).map(kubernetesJob -> this);
+        return Single.create(future)
+                .onComplete(this::setDone)
+                .onCancel(this::setCancelled)
+                .onError(this::setFailed)
+                .map(kubernetesJob -> this);
     }
 
     Job buildJob() {

@@ -49,23 +49,23 @@ public abstract class AbstractJob {
         return id;
     }
 
-    private void setRunning() {
+    public void setRunning() {
         status = Execution.Status.Running;
         startedAt = Instant.now();
     }
 
-    private void setFailed(Throwable t) {
+    public void setFailed(Throwable t) {
         status = Execution.Status.Failed;
         endedAt = Instant.now();
         exception = t;
     }
 
-    private void setDone() {
+    public void setDone() {
         status = Execution.Status.Done;
         endedAt = Instant.now();
     }
 
-    private void setCancelled() {
+    public void setCancelled() {
         status = Execution.Status.Cancelled;
         endedAt = Instant.now();
     }

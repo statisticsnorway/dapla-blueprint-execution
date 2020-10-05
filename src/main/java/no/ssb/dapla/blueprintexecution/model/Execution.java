@@ -12,12 +12,17 @@ public class Execution {
 
     private final UUID id = UUID.randomUUID();
     private final List<AbstractJob> jobs = new LinkedList<>();
+    private final List<AbstractJob> startingJobs = new LinkedList<>();
     private final Instant createdAt = Instant.now();
     private Instant startedAt;
     private Instant endedAt;
     private String startedBy;
     private Status status = Status.Ready;
     private Throwable exception;
+
+    public List<AbstractJob> getStartingJobs() {
+        return startingJobs;
+    }
 
     public Instant getCreatedAt() {
         return createdAt;
@@ -57,6 +62,10 @@ public class Execution {
 
     public Status getStatus() {
         return status;
+    }
+
+    public void addStartingJob(AbstractJob job) {
+        this.startingJobs.add(job);
     }
 
     public void setRunning() {

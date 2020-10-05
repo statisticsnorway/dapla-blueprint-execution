@@ -51,12 +51,22 @@ public class BlueprintExecutionService implements Service {
     public void update(Routing.Rules rules) {
         rules
                 .get("/status", this::doTest)
+                // Create the execution
                 .post("/execute", Handler.create(ExecutionRequest.class, this::doPostExecute))
-                .post("/execution/{executionId}/start", this::doPostExecutionStart)
-                .put("/execution/{executionId}/cancel", this::doPutExecutionCancel)
+                .post("/execution", Handler.create(ExecutionRequest.class, this::doPostExecute))
+                // Edit the execution (add remove notebooks)
+                .put("/execution/{executionId}", Handler.create(ExecutionRequest.class, this::doPutExecution))
+                // Get the execution
                 .get("/execution/{executionId}", this::doGetExecution)
+                // Start the execution
+                .post("/execution/{executionId}/start", this::doPostExecutionStart)
+                // Cancel the execution (and all jobs)
+                .put("/execution/{executionId}/cancel", this::doPutExecutionCancel)
+                // List the jobs
                 .get("/execution/{executionId}/job/{jobId}", this::doGetExecutionJob)
+                // Get log for a job
                 .get("/execution/{executionId}/job/{jobId}/log", this::doGetExecutionJobLog)
+                // Cancel a job
                 .put("/execution/{executionId}/job/{jobId}/cancel", this::doPutExecutionJobCancel)
 
                 .put("/execute", Handler.create(byte[].class, this::doExecute));
@@ -113,26 +123,14 @@ public class BlueprintExecutionService implements Service {
             }
 
             // Find the last jobs
-            List<KubernetesJob> startingJobs = new ArrayList<>();
             for (NotebookDetail notebook : jobs.keySet()) {
                 if (executionPlanCreator.getOutDegreeOf(notebook) == 0) {
-                    startingJobs.add(jobs.get(notebook));
+                    execution.addStartingJob(jobs.get(notebook));
                 }
             }
 
             execution.getJobs().addAll(jobs.values());
 
-            // TODO: Move to correct methods.
-            // Start the execution in another "control" thread.
-            CompletableFuture.runAsync(() -> {
-                Multi.create(startingJobs.stream())
-                        .flatMap(AbstractJob::executeJob)
-                        .collectList()
-                        .onComplete(execution::setDone)
-                        .onError(execution::setFailed)
-                        .onCancel(execution::setCancelled)
-                        .await();
-            }, jobExecutor);
             executionsMap.put(execution.getId(), execution);
 
             response.headers().location(URI.create("/api/v1/execution/" + execution.getId()));
@@ -145,6 +143,20 @@ public class BlueprintExecutionService implements Service {
 
     }
 
+
+    private void doPutExecution(ServerRequest request, ServerResponse response, ExecutionRequest executionRequest) {
+        var execution = getExecutionOrThrow(request);
+        if (execution.getStatus() != Execution.Status.Ready) {
+            response.status(Http.Status.CONFLICT_409).send("Cannot change a started execution");
+        } else {
+            // Maybe check that repositoryId and commitId are the same?
+
+            // Modify the execution.
+
+        }
+    }
+
+
     private void doGetExecution(ServerRequest request, ServerResponse response) {
         var execution = getExecutionOrThrow(request);
         response.status(Http.Status.OK_200).send(execution);
@@ -155,6 +167,16 @@ public class BlueprintExecutionService implements Service {
         if (execution.getStatus() != Execution.Status.Ready) {
             response.status(Http.Status.CONFLICT_409).send("Not ready");
         } else {
+            // Start the execution in another "control" thread.
+            CompletableFuture.runAsync(() -> {
+                Multi.create(execution.getStartingJobs())
+                        .flatMap(AbstractJob::executeJob)
+                        .collectList()
+                        .onComplete(execution::setDone)
+                        .onError(execution::setFailed)
+                        .onCancel(execution::setCancelled)
+                        .await();
+            }, jobExecutor);
             execution.setRunning();
             response.status(Http.Status.NO_CONTENT_204).send();
         }
