@@ -137,6 +137,7 @@ public class BlueprintExecutionService implements Service {
             }
         }
 
+        execution.getJobs().clear();
         execution.getJobs().addAll(jobs.values());
     }
 
