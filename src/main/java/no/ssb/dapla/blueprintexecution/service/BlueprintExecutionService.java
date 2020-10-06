@@ -111,6 +111,9 @@ public class BlueprintExecutionService implements Service {
         execution.setCommitId(executionRequest.commitId);
         execution.setRepositoryId(executionRequest.repositoryId);
 
+        execution.getJobs().clear();
+        execution.getStartingJobs().clear();
+
         NotebookGraph graph = blueprintClient.getNotebookGraph(executionRequest.repositoryId, executionRequest.commitId,
                 executionRequest.notebookIds);
 
@@ -137,7 +140,7 @@ public class BlueprintExecutionService implements Service {
             }
         }
 
-        execution.getJobs().clear();
+
         execution.getJobs().addAll(jobs.values());
     }
 
