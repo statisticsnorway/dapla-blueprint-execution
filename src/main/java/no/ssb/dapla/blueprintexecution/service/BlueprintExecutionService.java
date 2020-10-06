@@ -225,13 +225,12 @@ public class BlueprintExecutionService implements Service {
     }
 
     private void doGetExecutionJobLog(ServerRequest request, ServerResponse response) {
-        var interval = Multi.interval(1, TimeUnit.SECONDS, scheduler)
-                .map(l -> {
-                    return String.format("[%s] Some log: %s\n", Instant.now(), l);
-                })
-                .map(s -> DataChunk.create(true, ByteBuffer.wrap(s.getBytes()))).limit(100);
+        var job = getJobOrThrow(request);
 
-        response.status(Http.Status.OK_200).send(interval);
+        Multi<DataChunk> data = ((KubernetesJob) job).getLog()
+                .map(line -> DataChunk.create(true, ByteBuffer.wrap(line.getBytes())));
+
+        response.status(Http.Status.OK_200).send(data);
     }
 
     private void doPutExecutionJobCancel(ServerRequest request, ServerResponse response) {

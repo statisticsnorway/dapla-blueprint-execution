@@ -2,6 +2,7 @@ package no.ssb.dapla.blueprintexecution.model;
 
 import io.fabric8.kubernetes.api.model.batch.Job;
 import io.fabric8.kubernetes.client.KubernetesClient;
+import io.helidon.common.reactive.Multi;
 import io.helidon.common.reactive.Single;
 import io.helidon.config.Config;
 import no.ssb.dapla.blueprintexecution.blueprint.Notebook;
@@ -10,6 +11,8 @@ import no.ssb.dapla.blueprintexecution.k8s.K8sExecutionJob;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.BufferedReader;
+import java.io.IOException;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
@@ -29,6 +32,8 @@ public class KubernetesJob extends AbstractJob {
     private final NotebookDetail notebook;
     private final KubernetesClient client;
     private final Config config;
+
+    private final CompletableFuture<Job> kubernetesJob = new CompletableFuture<>();
 
     public KubernetesJob(Executor executor, NotebookDetail notebook, Config config, KubernetesClient client) {
         this.executor = Objects.requireNonNull(executor);
@@ -51,6 +56,35 @@ public class KubernetesJob extends AbstractJob {
         this.previousNodes.add(job);
     }
 
+    /**
+     * Ask for a stream (multi) of log lines.
+     */
+    public Multi<String> getLog() {
+        return getKubernetesJob().flatMap(this::getLogFor);
+    }
+
+    public Single<Job> getKubernetesJob() {
+        return Single.create(kubernetesJob);
+    }
+
+    private Multi<String> getLogFor(Job job) {
+        var namespace = job.getMetadata().getNamespace();
+        var jobName = job.getMetadata().getName();
+
+        log.info("Fetching logs for {} in namespace {}", jobName, namespace);
+        var resource = client.batch().jobs().inNamespace(namespace).withName(jobName);
+
+        BufferedReader reader = new BufferedReader(resource.getLogReader());
+        return Multi.create(reader.lines())
+                .onTerminate(() -> {
+                    try {
+                        reader.close();
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    }
+                });
+    }
+
     @Override
     protected Single<AbstractJob> startJob() {
         var future = CompletableFuture.supplyAsync(() -> {
@@ -66,6 +100,8 @@ public class KubernetesJob extends AbstractJob {
                 var job = client.batch().jobs().inNamespace(jobToCreate.getMetadata().getNamespace())
                         .createOrReplace(jobToCreate);
 
+                kubernetesJob.complete(job);
+
                 var jobName = job.getMetadata().getName();
                 var jobUid = job.getMetadata().getUid();
                 var jobNamespace = jobToCreate.getMetadata().getNamespace();
@@ -79,8 +115,7 @@ public class KubernetesJob extends AbstractJob {
 
                 this.setRunning();
 
-                log.info("Created job {}({}) in cluster {}\n{}", jobName, jobUid,
-                        jobClusterName, podNames);
+                log.info("Created job {}({}) in cluster {}\n{}", jobName, jobUid, jobClusterName, podNames);
 
 
                 client.pods().inNamespace(jobNamespace).withName(podNames.get(0))
