@@ -1,31 +1,27 @@
 package no.ssb.dapla.blueprintexecution.service;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.fabric8.kubernetes.client.DefaultKubernetesClient;
 import io.fabric8.kubernetes.client.KubernetesClient;
+import io.helidon.common.http.DataChunk;
 import io.helidon.common.http.Http;
 import io.helidon.common.reactive.Multi;
 import io.helidon.config.Config;
-import io.helidon.media.common.MessageBodyReadableContent;
 import io.helidon.webserver.*;
 import no.ssb.dapla.blueprintexecution.blueprint.BlueprintClient;
 import no.ssb.dapla.blueprintexecution.blueprint.NotebookDetail;
 import no.ssb.dapla.blueprintexecution.blueprint.NotebookGraph;
-import no.ssb.dapla.blueprintexecution.k8s.K8sExecutionJob;
 import no.ssb.dapla.blueprintexecution.model.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.IOException;
 import java.net.URI;
-import java.util.*;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.stream.Collectors;
-import java.util.stream.StreamSupport;
+import java.nio.ByteBuffer;
+import java.time.Instant;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.*;
 
 
 public class BlueprintExecutionService implements Service {
@@ -46,6 +42,7 @@ public class BlueprintExecutionService implements Service {
     private final BlueprintClient blueprintClient;
 
     private final KubernetesClient client = new DefaultKubernetesClient();
+    private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(2);
 
     public BlueprintExecutionService(Config config) {
         this.config = config;
@@ -70,13 +67,13 @@ public class BlueprintExecutionService implements Service {
                 // Cancel the execution (and all jobs)
                 .put("/execution/{executionId}/cancel", this::doPutExecutionCancel)
                 // List the jobs
+                .get("/execution/{executionId}/job", this::doGetExecutionJobs)
+                // List the jobs
                 .get("/execution/{executionId}/job/{jobId}", this::doGetExecutionJob)
                 // Get log for a job
                 .get("/execution/{executionId}/job/{jobId}/log", this::doGetExecutionJobLog)
                 // Cancel a job
-                .put("/execution/{executionId}/job/{jobId}/cancel", this::doPutExecutionJobCancel)
-
-                .put("/execute", Handler.create(byte[].class, this::doExecute));
+                .put("/execution/{executionId}/job/{jobId}/cancel", this::doPutExecutionJobCancel);
     }
 
     private void doGetExecutions(ServerRequest request, ServerResponse response) {
@@ -213,14 +210,24 @@ public class BlueprintExecutionService implements Service {
         }
     }
 
+    private void doGetExecutionJobs(ServerRequest request, ServerResponse response) {
+        var execution = getExecutionOrThrow(request);
+        response.status(Http.Status.OK_200).send(execution.getJobs());
+    }
+
     private void doGetExecutionJob(ServerRequest request, ServerResponse response) {
         var job = getJobOrThrow(request);
         response.status(Http.Status.OK_200).send(job);
     }
 
     private void doGetExecutionJobLog(ServerRequest request, ServerResponse response) {
-        var job = getJobOrThrow(request);
-        response.status(Http.Status.OK_200).send(); //job.getLog());
+        var interval = Multi.interval(1, TimeUnit.SECONDS, scheduler)
+                .map(l -> {
+                    return String.format("[%s] Some log: %s\n", Instant.now(), l);
+                })
+                .map(s -> DataChunk.create(true, ByteBuffer.wrap(s.getBytes()))).limit(100);
+
+        response.status(Http.Status.OK_200).send(interval);
     }
 
     private void doPutExecutionJobCancel(ServerRequest request, ServerResponse response) {
@@ -231,94 +238,6 @@ public class BlueprintExecutionService implements Service {
     private void doTest(ServerRequest req, ServerResponse res) {
         LOG.info("Request received!");
         res.send("Server is up and running");
-    }
-
-    @Deprecated
-    private void doExecute(ServerRequest req, ServerResponse res, byte[] body) {
-        // Workflow:
-        // Choose repo (provide name in json to this endpoint, get ID from blueprint service):
-        // GET blueprint/repositories
-
-        // Get the latest HEAD commitID:
-        // GET blueprint/repositories/{repoId}/commits/HEAD
-
-        // Choose the notebook to start from (provide name/path in json to this endpoint, get ID from blueprint service):
-        // GET blueprint/repositories/{repoId}/commits/{commitId}/notebooks
-
-        // Get DAG
-        // GET blueprint/repositories/{repoId}/commits/{commitId}/notebooks/{notebookId}
-
-        try {
-            LOG.debug("Start building and executing Notebook pipeline");
-
-            // Get and validate payload params
-            JsonNode node = mapper.readTree(body);
-            String repoName = Objects.requireNonNull(node.get("repo").asText(), "Repository URL is required");
-            repoName += ".git"; // URI from Blueprint service contains git extension
-            String notebookPath = Objects.requireNonNull(node.get("notebook").asText(), "Notebook path is required");
-
-            // Get repositories from Blueprint
-            var repositories = blueprintClient.getRepositories();
-            // Find repoId from payload
-            var repository = repositories.stream().findFirst().orElseThrow();
-
-            // Get latest commit from Blueprint
-            var commits = blueprintClient.getCommits(repository.id);
-            var commit = commits.stream().min(Comparator.comparing(c -> c.createdAt)).orElseThrow();
-
-            // Get all notebooks in given repo from Blueprint
-            LOG.debug("Fetching notebooks for repo {} with id {} and commitId {}", repoName, repository.id,
-                    commit.id);
-
-            var notebooks = blueprintClient.getNotebooks(repository.id, commit.id);
-            var notebook = notebooks.stream().filter(n -> notebookPath.equals(n.path))
-                    .findFirst().orElseThrow();
-
-            // Get DAG based on given notebookId
-            var notebookGraph = blueprintClient.getNotebookGraph(repository.id, commit.id, notebook.id);
-
-            // get notebookID from request (use HEAD in v1)
-            // call blueprint /repository/{repoID}/revisions/{head}/notebooks/{notebookID}
-
-            // Build execution plan
-            ExecutionPlanCreator executionPlanCreator = new ExecutionPlanCreator(notebookGraph);
-            List<String> executionPlan = StreamSupport.stream(executionPlanCreator.spliterator(), false)
-                    .map(n -> n.fetchUrl)
-                    .collect(Collectors.toList());
-
-            // Build k8s job list
-            List<K8sExecutionJob> k8sExecutionJobs = new ArrayList<>();
-            executionPlan.forEach(notebookUri -> k8sExecutionJobs.add(new K8sExecutionJob(notebookUri)));
-
-            // TODO execute each job and wait for it to finish before starting next
-            k8sExecutionJobs.forEach(K8sExecutionJob::createAndRunJOb); // Which means, not like this
-
-            //        // Create and run job async
-            //        CompletableFuture.runAsync(() -> k8sExecutionJob.createAndRunJOb())
-            //                .orTimeout(20, TimeUnit.SECONDS);
-            res.status(Http.Status.CREATED_201).send();
-        } catch (HttpException e) {
-            LOG.error("Error calling Blueprint service", e);
-            res.status(Http.Status.INTERNAL_SERVER_ERROR_500).send(e.toString());
-        } catch (InterruptedException | ExecutionException e) {
-            LOG.error("Error getting notebook from Blueprint", e);
-            res.status(Http.Status.INTERNAL_SERVER_ERROR_500).send(e.toString());
-        } catch (IOException e) {
-            LOG.error("Error", e);
-            res.status(Http.Status.INTERNAL_SERVER_ERROR_500).send(e.toString());
-        }
-    }
-
-    private String extractIdFromJsonArray(String compareValue, MessageBodyReadableContent content, String nodeName) {
-        JsonNode repsResBody = content.as(JsonNode.class).toCompletableFuture().join();
-        String result = null;
-        for (JsonNode repoNode : repsResBody) {
-            if (repoNode.get(nodeName).asText().equals(compareValue)) {
-                result = repoNode.get("id").asText();
-                break;
-            }
-        }
-        return result;
     }
 
 }
