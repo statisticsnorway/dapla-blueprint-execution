@@ -1,15 +1,14 @@
 package no.ssb.dapla.blueprintexecution.k8s;
 
 import io.fabric8.kubernetes.api.model.*;
-import io.fabric8.kubernetes.api.model.batch.DoneableJob;
 import io.fabric8.kubernetes.api.model.batch.Job;
 import io.fabric8.kubernetes.api.model.batch.JobBuilder;
 import io.fabric8.kubernetes.client.DefaultKubernetesClient;
 import io.fabric8.kubernetes.client.KubernetesClient;
 import io.fabric8.kubernetes.client.KubernetesClientException;
-import io.fabric8.kubernetes.client.dsl.ScalableResource;
 import io.helidon.config.Config;
 import no.ssb.dapla.blueprintexecution.blueprint.NotebookDetail;
+import org.apache.commons.lang3.RandomStringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -135,7 +134,8 @@ public class K8sExecutionJob {
     public Job buildJob() {
         return new JobBuilder()
                 .withNewMetadata()
-                .withName(getPodPrefix() + "-job")
+//                .withGenerateName(getPodPrefix())
+                .withName(getPodPrefix() + RandomStringUtils.random(5, true, true).toLowerCase() + "-job") // add random string
                 .withLabels(Collections.singletonMap("label1", "execute_notebook_dag"))
                 .withNamespace(getNamespace())
                 .endMetadata()
