@@ -76,6 +76,7 @@ public class KubernetesJob extends AbstractJob {
 
         BufferedReader reader = new BufferedReader(resource.getLogReader());
         return Multi.create(reader.lines())
+                .map(line -> line + "\n")
                 .onTerminate(() -> {
                     try {
                         reader.close();
@@ -119,9 +120,10 @@ public class KubernetesJob extends AbstractJob {
 
 
                 client.pods().inNamespace(jobNamespace).withName(podNames.get(0))
-                        .waitUntilCondition(pod -> {
-                            return pod.getStatus().getPhase().equals("Succeeded") || pod.getStatus().getPhase().equals("Error");
-                        }, 10, TimeUnit.HOURS);
+                        .waitUntilCondition(pod ->
+                                pod.getStatus().getPhase().equals("Succeeded") ||
+                                        pod.getStatus().getPhase().equals("Error"),
+                                10, TimeUnit.HOURS);
 
                 log.info("Done executing job ({}) {} in cluster {}\n{}", jobName, jobUid,
                         jobClusterName, podNames);
