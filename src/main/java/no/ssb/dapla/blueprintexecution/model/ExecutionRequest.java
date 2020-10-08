@@ -6,5 +6,6 @@ import java.util.Set;
 public class ExecutionRequest {
     public String repositoryId;
     public String commitId;
-    public Set<String> notebookIds = new LinkedHashSet<>();
+    public Set<String> startNotebookIds = new LinkedHashSet<>();
+    public Set<String> endNotebookIds = new LinkedHashSet<>();
 }

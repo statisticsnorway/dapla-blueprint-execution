@@ -114,8 +114,18 @@ public class BlueprintExecutionService implements Service {
         execution.getJobs().clear();
         execution.getStartingJobs().clear();
 
-        NotebookGraph graph = blueprintClient.getNotebookGraph(executionRequest.repositoryId, executionRequest.commitId,
-                executionRequest.notebookIds);
+        if (!executionRequest.startNotebookIds.isEmpty() && !executionRequest.endNotebookIds.isEmpty()) {
+            throw new BadRequestException("cannot set both startNotebookIds and endNotebookIds");
+        }
+
+        NotebookGraph graph;
+        if (!executionRequest.startNotebookIds.isEmpty()) {
+            graph = blueprintClient.getForwardDependencies(executionRequest.repositoryId, executionRequest.commitId,
+                    executionRequest.startNotebookIds);
+        } else {
+            graph = blueprintClient.getBackwardDependencies(executionRequest.repositoryId, executionRequest.commitId,
+                    executionRequest.endNotebookIds);
+        }
 
         ExecutionPlanCreator executionPlanCreator = new ExecutionPlanCreator(graph);
 

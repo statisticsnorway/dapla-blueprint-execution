@@ -19,7 +19,8 @@ public class BlueprintClient {
     private static final String REPOSITORIES_PATH = "/api/v1/repositories";
     private static final String COMMITS_PATH = "/api/v1/repositories/%s/commits";
     private static final String NOTEBOOKS_PATH = "/api/v1/repositories/%s/commits/%s/notebooks";
-    private static final String NOTEBOOK_PATH = "/api/v1/repositories/%s/commits/%s/notebooks/%s";
+    private static final String NOTEBOOK_PATH_FORWARD = "/api/v1/repositories/%s/commits/%s/notebooks/%s/forward";
+    private static final String NOTEBOOK_PATH_BACKWARD = "/api/v1/repositories/%s/commits/%s/notebooks/%s/backward";
 
     private static final GenericType<List<Repository>> REPOSITORY_LIST = new GenericType<>() {
     };
@@ -69,21 +70,44 @@ public class BlueprintClient {
                 .request(NOTEBOOK_LIST).get();
     }
 
-    public NotebookGraph getNotebookGraph(String repositoryId, String commitId, String notebookId) throws ExecutionException, InterruptedException {
+    public NotebookGraph getForwardDependencies(String repositoryId, String commitId, String notebookId) throws ExecutionException, InterruptedException {
         return client.get()
                 .accept(APPLICATION_BLUEPRINT_DAG)
-                .path(String.format(NOTEBOOK_PATH, repositoryId, commitId, notebookId))
+                .path(String.format(NOTEBOOK_PATH_FORWARD, repositoryId, commitId, notebookId))
                 .request(NOTEBOOK_GRAPH).get();
     }
 
-    public NotebookGraph getNotebookGraph(String repositoryId, String commitId, Set<String> notebookIds) throws ExecutionException, InterruptedException {
+    public NotebookGraph getForwardDependencies(String repositoryId, String commitId, Set<String> notebookIds) throws ExecutionException, InterruptedException {
         // The notebook service does not support asking for many notebook ids. We emulate this for now by making
         // many calls on notebook that are not yet seen in the previous graphs.
         Set<String> seenNotebooks = new HashSet<>();
         NotebookGraph aggregatedGraph = new NotebookGraph();
         for (String notebookId : notebookIds) {
             if (!seenNotebooks.contains(notebookId)) {
-                NotebookGraph notebookGraph = getNotebookGraph(repositoryId, commitId, notebookId);
+                NotebookGraph notebookGraph = getForwardDependencies(repositoryId, commitId, notebookId);
+                notebookGraph.nodes.stream().map(n -> n.id).forEach(seenNotebooks::add);
+                aggregatedGraph.nodes.addAll(notebookGraph.nodes);
+                aggregatedGraph.edges.addAll(notebookGraph.edges);
+            }
+        }
+        return aggregatedGraph;
+    }
+
+    public NotebookGraph getBackwardDependencies(String repositoryId, String commitId, String notebookId) throws ExecutionException, InterruptedException {
+        return client.get()
+                .accept(APPLICATION_BLUEPRINT_DAG)
+                .path(String.format(NOTEBOOK_PATH_BACKWARD, repositoryId, commitId, notebookId))
+                .request(NOTEBOOK_GRAPH).get();
+    }
+
+    public NotebookGraph getBackwardDependencies(String repositoryId, String commitId, Set<String> notebookIds) throws ExecutionException, InterruptedException {
+        // The notebook service does not support asking for many notebook ids. We emulate this for now by making
+        // many calls on notebook that are not yet seen in the previous graphs.
+        Set<String> seenNotebooks = new HashSet<>();
+        NotebookGraph aggregatedGraph = new NotebookGraph();
+        for (String notebookId : notebookIds) {
+            if (!seenNotebooks.contains(notebookId)) {
+                NotebookGraph notebookGraph = getBackwardDependencies(repositoryId, commitId, notebookId);
                 notebookGraph.nodes.stream().map(n -> n.id).forEach(seenNotebooks::add);
                 aggregatedGraph.nodes.addAll(notebookGraph.nodes);
                 aggregatedGraph.edges.addAll(notebookGraph.edges);

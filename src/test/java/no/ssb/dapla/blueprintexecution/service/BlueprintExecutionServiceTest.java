@@ -55,7 +55,7 @@ public class BlueprintExecutionServiceTest {
     @Test
     URI testCreateExecution() {
         var request = new ExecutionRequest();
-        request.notebookIds = Set.of("/foo/bar");
+        request.startNotebookIds = Set.of("/foo/bar");
         request.repositoryId = "https://example.com";
         var response = client.post().path("/api/v1/execute").submit(request).await();
         assertThat(response.status()).isEqualTo(Http.Status.CREATED_201);
