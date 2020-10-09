@@ -90,6 +90,13 @@ public class K8sExecutionJob {
         ).normalize().toString();
     }
 
+    private String getOutputPath() {
+        return Path.of(
+                getMountPath(),
+                "result.ipynb"
+        ).normalize().toString();
+    }
+
     @Deprecated
     public void createAndRunJOb() {
         try (final KubernetesClient client = new DefaultKubernetesClient()) {
@@ -158,7 +165,7 @@ public class K8sExecutionJob {
                 .withName(getPodPrefix() + "-cont")
                 .withImage(getContainerImage())
                 .withResources(createResourceRequirements())
-                .withCommand("papermill", getNotebookPath(), "/dev/null", "-k", "pyspark_k8s")
+                .withCommand("papermill", getNotebookPath(), getOutputPath(), "-k", "pyspark_k8s")
                 .addNewVolumeMount()
                 .withName(getVolumeName())
                 .withMountPath(getMountPath())
