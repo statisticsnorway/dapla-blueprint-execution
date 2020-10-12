@@ -12,7 +12,8 @@ public class Execution {
 
     private final UUID id = UUID.randomUUID();
     private final List<AbstractJob> jobs = new LinkedList<>();
-    private final List<AbstractJob> startingJobs = new LinkedList<>();
+    private final List<AbstractJob> endJobs = new LinkedList<>();
+    private final List<AbstractJob> startJobs = new LinkedList<>();
     private final Instant createdAt = Instant.now();
     private String commitId;
     private String repositoryId;
@@ -21,6 +22,14 @@ public class Execution {
     private String startedBy;
     private Status status = Status.Ready;
     private Throwable exception;
+
+    public List<AbstractJob> getStartJobs() {
+        return startJobs;
+    }
+
+    public List<AbstractJob> getEndJobs() {
+        return endJobs;
+    }
 
     public String getRepositoryId() {
         return repositoryId;
@@ -38,9 +47,6 @@ public class Execution {
         this.commitId = commitId;
     }
 
-    public List<AbstractJob> getStartingJobs() {
-        return startingJobs;
-    }
 
     public Instant getCreatedAt() {
         return createdAt;
@@ -82,8 +88,12 @@ public class Execution {
         return status;
     }
 
-    public void addStartingJob(AbstractJob job) {
-        this.startingJobs.add(job);
+    public void addEndJob(AbstractJob job) {
+        this.endJobs.add(job);
+    }
+
+    public void addStartJob(AbstractJob job) {
+        this.startJobs.add(job);
     }
 
     public void setRunning() {

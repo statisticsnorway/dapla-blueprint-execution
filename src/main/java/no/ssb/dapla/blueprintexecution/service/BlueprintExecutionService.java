@@ -17,7 +17,6 @@ import org.slf4j.LoggerFactory;
 
 import java.net.URI;
 import java.nio.ByteBuffer;
-import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.UUID;
@@ -112,7 +111,7 @@ public class BlueprintExecutionService implements Service {
         execution.setRepositoryId(executionRequest.repositoryId);
 
         execution.getJobs().clear();
-        execution.getStartingJobs().clear();
+        execution.getEndJobs().clear();
 
         if (!executionRequest.startNotebookIds.isEmpty() && !executionRequest.endNotebookIds.isEmpty()) {
             throw new BadRequestException("cannot set both startNotebookIds and endNotebookIds");
@@ -143,11 +142,15 @@ public class BlueprintExecutionService implements Service {
             }
         }
 
-        // Find the last jobs
+        // Find the start & end jobs
         for (NotebookDetail notebook : jobs.keySet()) {
             if (executionPlanCreator.getOutDegreeOf(notebook) == 0) {
-                execution.addStartingJob(jobs.get(notebook));
+                execution.addEndJob(jobs.get(notebook));
             }
+            if (executionPlanCreator.getInDegreeOf(notebook) == 0) {
+                execution.addStartJob(jobs.get(notebook));
+            }
+
         }
 
 
@@ -201,7 +204,7 @@ public class BlueprintExecutionService implements Service {
         } else {
             // Start the execution in another "control" thread.
             CompletableFuture.runAsync(() -> {
-                Multi.create(execution.getStartingJobs())
+                Multi.create(execution.getEndJobs())
                         .flatMap(AbstractJob::executeJob)
                         .collectList()
                         .onComplete(execution::setDone)
