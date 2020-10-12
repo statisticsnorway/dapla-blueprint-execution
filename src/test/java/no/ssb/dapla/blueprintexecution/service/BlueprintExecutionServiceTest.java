@@ -64,6 +64,7 @@ public class BlueprintExecutionServiceTest {
     }
 
     @Test
+    @Disabled
     void testCreateThenGet() {
         var notFoundResponse = client.get().path("/api/v1/execution/" + UUID.randomUUID())
                 .submit().await();
@@ -77,6 +78,7 @@ public class BlueprintExecutionServiceTest {
     }
 
     @Test
+    @Disabled
     void testCreateThenStartThenCancel() {
         var uri = testCreateExecution();
         var response = client.get().path(uri.getPath()).submit().await();

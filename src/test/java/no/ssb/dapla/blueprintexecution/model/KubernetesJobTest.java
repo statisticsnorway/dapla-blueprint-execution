@@ -8,6 +8,7 @@ import io.fabric8.kubernetes.api.model.batch.Job;
 import io.helidon.config.Config;
 import io.helidon.config.ConfigSources;
 import no.ssb.dapla.blueprintexecution.blueprint.NotebookDetail;
+import org.apache.commons.lang3.StringUtils;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
@@ -51,6 +52,12 @@ class KubernetesJobTest {
 
         KubernetesJob kubernetesJob = new KubernetesJob(Executors.newSingleThreadExecutor(), detail, config, null);
         Job job = kubernetesJob.buildJob();
+
+        // Remove random part of job name
+        String[] jobNameArray = job.getMetadata().getName().split("-");
+        jobNameArray[3] = jobNameArray[3].substring(0, 7);
+        job.getMetadata().setName(StringUtils.join(jobNameArray, "-"));
+
         Job expectedJob = yamlMapper.readValue(
                 getClass().getResource("expected_job.yaml"),
                 Job.class
