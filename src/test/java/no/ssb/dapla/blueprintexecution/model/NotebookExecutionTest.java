@@ -29,14 +29,18 @@ public class NotebookExecutionTest {
         var jobI = new TestJob("job I", jobG);
 
         var jobIResult = jobI.executeJob();
-        var jobHResult = jobI.executeJob();
+        var jobHResult = jobH.executeJob();
 
         assertThat(jobIResult.toCompletableFuture().isDone()).isFalse();
         assertThat(jobHResult.toCompletableFuture().isDone()).isFalse();
         jobI.executePrevious();
+        jobH.executePrevious();
 
         jobIResult.get();
         jobHResult.get();
+
+        // Wait a little bit
+        Thread.sleep(1000);
 
         assertThat(jobIResult.toCompletableFuture().isDone()).isTrue();
         assertThat(jobHResult.toCompletableFuture().isDone()).isTrue();
