@@ -3,6 +3,21 @@ webserver:
   host: "0.0.0.0"
   access-log:
     format: "%h %u %t %r %s %b %{Referer}i %T"
+cors:
+  expose-headers: ["*"]
+
+k8s:
+  namespace: dapla-spark
+  volume-name: notebooks
+  pod-prefix: jupyter-execution
+  mount-path: /notebooks
+  container:
+    memory-limit: "1024Mi"
+    memory-request: "512Mi"
+    image: "eu.gcr.io/prod-bip/ssb/dapla/dapla-jupyterlab:master-35989879b39e8fdf06e971c29f2de7678c1180cc"
+
+blueprint:
+  url: https://blueprint.staging-bip-app.ssb.no/
 
 health:
   readiness:
