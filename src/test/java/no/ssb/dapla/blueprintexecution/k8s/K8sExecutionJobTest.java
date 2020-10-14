@@ -1,8 +1,11 @@
 package no.ssb.dapla.blueprintexecution.k8s;
 
+import io.fabric8.kubernetes.api.model.batch.Job;
+import io.fabric8.kubernetes.client.utils.Serialization;
 import io.helidon.config.Config;
 import io.helidon.config.ConfigSources;
 import no.ssb.dapla.blueprintexecution.blueprint.NotebookDetail;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
@@ -14,10 +17,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 public class K8sExecutionJobTest {
 
     private static final Random RANDOM = new Random(1234);
+    private K8sExecutionJob k8sExecutionJob;
 
-    @Test
-    void testTemplating() throws IOException {
-
+    @BeforeEach
+    void setUp() {
         NotebookDetail detail = new NotebookDetail();
         detail.id = "757b9c7c9e1351d7811a68466026ac8622169ad3";
         detail.commitId = "785257f87f37a40fe1d7641e1b5a95017e1b2b47";
@@ -35,12 +38,25 @@ public class K8sExecutionJobTest {
                 "blueprint.url", "https://example.com//"
         )));
 
-        K8sExecutionJob k8sExecutionJob = new K8sExecutionJob(config, detail, RANDOM);
+        k8sExecutionJob = new K8sExecutionJob(config, detail, RANDOM);
+    }
+
+    @Test
+    void testTemplating() throws IOException {
 
         byte[] job = k8sExecutionJob.interpolateTemplate().readAllBytes();
         byte[] expected = getClass().getResourceAsStream("expected_job.yaml").readAllBytes();
 
         assertThat(new String(job)).isEqualTo(new String(expected));
 
+    }
+
+    @Test
+    void testUnmarshall() throws IOException {
+
+        Job job = k8sExecutionJob.getJob();
+        Job expected = Serialization.unmarshal(getClass().getResourceAsStream("expected_job.yaml"), Job.class);
+
+        assertThat(job).isEqualTo(expected);
     }
 }
