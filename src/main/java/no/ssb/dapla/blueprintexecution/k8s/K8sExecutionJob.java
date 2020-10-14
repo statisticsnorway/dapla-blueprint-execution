@@ -1,5 +1,8 @@
 package no.ssb.dapla.blueprintexecution.k8s;
 
+import com.github.mustachejava.DefaultMustacheFactory;
+import com.github.mustachejava.Mustache;
+import com.github.mustachejava.MustacheFactory;
 import io.fabric8.kubernetes.api.model.*;
 import io.fabric8.kubernetes.api.model.batch.Job;
 import io.fabric8.kubernetes.api.model.batch.JobBuilder;
@@ -12,6 +15,10 @@ import org.apache.commons.lang3.RandomStringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.OutputStreamWriter;
+import java.io.Writer;
 import java.net.URI;
 import java.nio.file.Path;
 import java.util.Collections;
@@ -30,6 +37,7 @@ public class K8sExecutionJob {
     private String jobLog;
     @Deprecated
     private PodStatus status;
+
     private Config config;
     private NotebookDetail notebook;
 
@@ -47,6 +55,15 @@ public class K8sExecutionJob {
         this.job = null;
     }
 
+    public void test() throws IOException {
+        Writer writer = new OutputStreamWriter(System.out);
+        MustacheFactory mf = new DefaultMustacheFactory();
+        InputStreamReader reader = new InputStreamReader(getClass().getResourceAsStream("job.template.yaml"));
+        Mustache mustache = mf.compile(reader, "job.template.yaml");
+        mustache.execute(writer, this);
+        writer.flush();
+    }
+
     private String getNamespace() {
         return this.config.get("k8s.namespace").asString().get();
     }
@@ -57,7 +74,7 @@ public class K8sExecutionJob {
 
     private String getPodPrefix() {
         String prefix = this.config.get("k8s.pod-prefix").asString().get();
-        return prefix + "-" + this.notebook.id.substring(0,7);
+        return prefix + "-" + this.notebook.id.substring(0, 7);
     }
 
     private String getMountPath() {
@@ -79,7 +96,7 @@ public class K8sExecutionJob {
     private String getNotebookUri() {
         return URI.create(
                 this.config.get("blueprint.url").asString().get() + "/" +
-                notebook.fetchUrl
+                        notebook.fetchUrl
         ).normalize().toASCIIString();
     }
 
