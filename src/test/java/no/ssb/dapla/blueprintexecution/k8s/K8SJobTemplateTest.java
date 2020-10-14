@@ -16,11 +16,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 public class K8SJobTemplateTest {
 
-    private static final Random RANDOM = new Random(1234);
+    private Random random;
     private K8sJobTemplate k8SJobTemplate;
 
     @BeforeEach
     void setUp() {
+        random = new Random(1234);
         NotebookDetail detail = new NotebookDetail();
         detail.id = "757b9c7c9e1351d7811a68466026ac8622169ad3";
         detail.commitId = "785257f87f37a40fe1d7641e1b5a95017e1b2b47";
@@ -38,7 +39,7 @@ public class K8SJobTemplateTest {
                 "blueprint.url", "https://example.com//"
         )));
 
-        k8SJobTemplate = new K8sJobTemplate(config, detail, RANDOM);
+        k8SJobTemplate = new K8sJobTemplate(config, detail, random);
     }
 
     @Test
