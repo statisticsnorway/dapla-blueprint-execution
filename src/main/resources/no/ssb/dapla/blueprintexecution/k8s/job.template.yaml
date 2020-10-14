@@ -1,34 +1,35 @@
 apiVersion: "batch/v1"
 kind: "Job"
 metadata:
-  namespace: {{getNamespace}}
+  namespace: "{{Namespace}}"
   labels:
     label1: "execute_notebook_dag"
+  name: "{{PodPrefix}}-job"
 spec:
   template:
     spec:
       containers:
-        - name: {{pod-prefix}}
-          image: {{container.image}}
-          command: [ "papermill", "{{mount-path}}/notebook.ipynb", "{{mount-path}}/result.ipynb", "-k", "pyspark_k8s" ]
+        - name: "{{PodPrefix}}-cont"
+          image: "{{ContainerImage}}"
+          command: [ "papermill", "{{notebookPath}}", "{{outputPath}}", "-k", "pyspark_k8s" ]
           resources:
             limits:
-              memory: {{container.memory-limit}}
+              memory: "{{ContainerMemoryLimit}}"
             requests:
-              memory: {{container.memory-request}}
+              memory: "{{ContainerMemoryRequest}}"
           volumeMounts:
-            - name: {{volume-name}}
-              mountPath: {{mount-path}}
+            - name: {{VolumeName}}
+              mountPath: "{{MountPath}}"
       restartPolicy: Never
       initContainers:
         - name: "copy-notebooks"
-          image: {{container.image}}
-          command: [ "curl", "-X", "GET", "{{fetchUrl}}",
+          image: "{{ContainerImage}}"
+          command: [ "curl", "-X", "GET", "{{notebookUri}}",
                      "-H", "accept: application/x-ipynb+json",
-                     "-o", "{{mount-path}}/notebook.ipynb" ]
+                     "-o", "{{notebookPath}}" ]
           volumeMounts:
-            - name: {{volume-name}}
-              mountPath: {{mount-path}}
+            - name: {{VolumeName}}
+              mountPath: "{{MountPath}}"
       volumes:
-        - name: {{volume-name}}
+        - name: {{VolumeName}}
           emptyDir: { }

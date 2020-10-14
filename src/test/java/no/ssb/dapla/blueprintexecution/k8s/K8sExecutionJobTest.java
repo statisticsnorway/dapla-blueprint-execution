@@ -7,8 +7,13 @@ import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.Random;
+
+import static org.assertj.core.api.Assertions.assertThat;
 
 public class K8sExecutionJobTest {
+
+    private static final Random RANDOM = new Random(1234);
 
     @Test
     void testTemplating() throws IOException {
@@ -30,9 +35,12 @@ public class K8sExecutionJobTest {
                 "blueprint.url", "https://example.com//"
         )));
 
-        K8sExecutionJob k8sExecutionJob = new K8sExecutionJob(config, detail);
+        K8sExecutionJob k8sExecutionJob = new K8sExecutionJob(config, detail, RANDOM);
 
-        k8sExecutionJob.test();
+        byte[] job = k8sExecutionJob.interpolateTemplate().readAllBytes();
+        byte[] expected = getClass().getResourceAsStream("expected_job.yaml").readAllBytes();
+
+        assertThat(new String(job)).isEqualTo(new String(expected));
 
     }
 }
