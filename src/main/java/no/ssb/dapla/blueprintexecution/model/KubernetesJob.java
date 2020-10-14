@@ -7,7 +7,7 @@ import io.helidon.common.reactive.Single;
 import io.helidon.config.Config;
 import no.ssb.dapla.blueprintexecution.blueprint.Notebook;
 import no.ssb.dapla.blueprintexecution.blueprint.NotebookDetail;
-import no.ssb.dapla.blueprintexecution.k8s.K8sExecutionJob;
+import no.ssb.dapla.blueprintexecution.k8s.K8sJobTemplate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -121,8 +121,8 @@ public class KubernetesJob extends AbstractJob {
 
                 client.pods().inNamespace(jobNamespace).withName(podNames.get(0))
                         .waitUntilCondition(pod ->
-                                pod.getStatus().getPhase().equals("Succeeded") ||
-                                        pod.getStatus().getPhase().equals("Error"),
+                                        pod.getStatus().getPhase().equals("Succeeded") ||
+                                                pod.getStatus().getPhase().equals("Error"),
                                 10, TimeUnit.HOURS);
 
                 log.info("Done executing job ({}) {} in cluster {}\n{}", jobName, jobUid,
@@ -147,7 +147,11 @@ public class KubernetesJob extends AbstractJob {
     }
 
     Job buildJob() {
-        K8sExecutionJob jobCreator = new K8sExecutionJob(config, notebook);
-        return jobCreator.buildJob();
+        K8sJobTemplate jobCreator = new K8sJobTemplate(config, notebook);
+        try {
+            return jobCreator.getJob();
+        } catch (IOException e) {
+            throw new RuntimeException("template error", e);
+        }
     }
 }

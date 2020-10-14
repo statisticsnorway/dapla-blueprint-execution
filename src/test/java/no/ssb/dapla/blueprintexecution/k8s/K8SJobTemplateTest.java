@@ -14,10 +14,10 @@ import java.util.Random;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-public class K8sExecutionJobTest {
+public class K8SJobTemplateTest {
 
     private static final Random RANDOM = new Random(1234);
-    private K8sExecutionJob k8sExecutionJob;
+    private K8sJobTemplate k8SJobTemplate;
 
     @BeforeEach
     void setUp() {
@@ -38,13 +38,13 @@ public class K8sExecutionJobTest {
                 "blueprint.url", "https://example.com//"
         )));
 
-        k8sExecutionJob = new K8sExecutionJob(config, detail, RANDOM);
+        k8SJobTemplate = new K8sJobTemplate(config, detail, RANDOM);
     }
 
     @Test
     void testTemplating() throws IOException {
 
-        byte[] job = k8sExecutionJob.interpolateTemplate().readAllBytes();
+        byte[] job = k8SJobTemplate.interpolateTemplate().readAllBytes();
         byte[] expected = getClass().getResourceAsStream("expected_job.yaml").readAllBytes();
 
         assertThat(new String(job)).isEqualTo(new String(expected));
@@ -54,7 +54,7 @@ public class K8sExecutionJobTest {
     @Test
     void testUnmarshall() throws IOException {
 
-        Job job = k8sExecutionJob.getJob();
+        Job job = k8SJobTemplate.getJob();
         Job expected = Serialization.unmarshal(getClass().getResourceAsStream("expected_job.yaml"), Job.class);
 
         assertThat(job).isEqualTo(expected);

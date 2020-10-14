@@ -19,19 +19,19 @@ import java.security.SecureRandom;
 import java.util.Objects;
 import java.util.Random;
 
-public class K8sExecutionJob {
+public class K8sJobTemplate {
 
-    private static final Logger LOG = LoggerFactory.getLogger(K8sExecutionJob.class);
-    private static final URL template = K8sExecutionJob.class.getResource("job.template.yaml");
+    private static final Logger LOG = LoggerFactory.getLogger(K8sJobTemplate.class);
+    private static final URL template = K8sJobTemplate.class.getResource("job.template.yaml");
     private final Config config;
     private final NotebookDetail notebook;
     private final Random random;
 
-    public K8sExecutionJob(Config config, NotebookDetail notebook) {
+    public K8sJobTemplate(Config config, NotebookDetail notebook) {
         this(config, notebook, new SecureRandom());
     }
 
-    public K8sExecutionJob(Config config, NotebookDetail notebook, Random random) {
+    public K8sJobTemplate(Config config, NotebookDetail notebook, Random random) {
         this.config = Objects.requireNonNull(config);
         this.notebook = Objects.requireNonNull(notebook);
         this.random = Objects.requireNonNull(random);
