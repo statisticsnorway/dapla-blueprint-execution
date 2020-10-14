@@ -22,7 +22,8 @@ import java.util.Random;
 public class K8sJobTemplate {
 
     private static final Logger LOG = LoggerFactory.getLogger(K8sJobTemplate.class);
-    private static final URL template = K8sJobTemplate.class.getResource("job.template.yaml");
+    private static final String JOB_TEMPLATE_YAML = "job.template.yaml";
+    private static final URL template = K8sJobTemplate.class.getResource(JOB_TEMPLATE_YAML);
     private final Config config;
     private final NotebookDetail notebook;
     private final Random random;
@@ -44,7 +45,7 @@ public class K8sJobTemplate {
                 var reader = new InputStreamReader(template.openStream());
                 var writer = new OutputStreamWriter(output);
         ) {
-            Mustache mustache = mf.compile(reader, "job.template.yaml");
+            Mustache mustache = mf.compile(reader, JOB_TEMPLATE_YAML);
             mustache.execute(writer, this);
             writer.flush();
             if (LOG.isDebugEnabled()) {
