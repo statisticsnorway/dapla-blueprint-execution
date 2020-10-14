@@ -3,9 +3,7 @@ package no.ssb.dapla.blueprintexecution.k8s;
 import com.github.mustachejava.DefaultMustacheFactory;
 import com.github.mustachejava.Mustache;
 import com.github.mustachejava.MustacheFactory;
-import io.fabric8.kubernetes.api.model.*;
 import io.fabric8.kubernetes.api.model.batch.Job;
-import io.fabric8.kubernetes.api.model.batch.JobBuilder;
 import io.fabric8.kubernetes.client.utils.Serialization;
 import io.helidon.config.Config;
 import no.ssb.dapla.blueprintexecution.blueprint.NotebookDetail;
@@ -18,8 +16,6 @@ import java.net.URI;
 import java.net.URL;
 import java.nio.file.Path;
 import java.security.SecureRandom;
-import java.util.Collections;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Random;
 
@@ -115,67 +111,6 @@ public class K8sExecutionJob {
                 getMountPath(),
                 "result.ipynb"
         ).normalize().toString();
-    }
-
-    public Job buildJob() {
-        return new JobBuilder()
-                .withNewMetadata()
-//                .withGenerateName(getPodPrefix())
-                .withName(getPodPrefix()) // add random string
-                .withLabels(Collections.singletonMap("label1", "execute_notebook_dag"))
-                .withNamespace(getNamespace())
-                .endMetadata()
-                .withNewSpec()
-                .withNewTemplate()
-                .withNewSpec()
-                .withContainers(createContainer())
-                .withRestartPolicy("Never")
-                .withInitContainers(createInitContainer())
-                .withRestartPolicy("Never")
-                .withVolumes(createVolume())
-                .endSpec()
-                .endTemplate()
-                .endSpec()
-                .build();
-    }
-
-    public Container createContainer() {
-        return new ContainerBuilder()
-                .withName(getPodPrefix() + "-cont")
-                .withImage(getContainerImage())
-                .withResources(createResourceRequirements())
-                .withCommand("papermill", getNotebookPath(), getOutputPath(), "-k", "pyspark_k8s")
-                .addNewVolumeMount()
-                .withName(getVolumeName())
-                .withMountPath(getMountPath())
-                .endVolumeMount()
-                .build();
-    }
-
-    public ResourceRequirements createResourceRequirements() {
-        return new ResourceRequirementsBuilder()
-                .withLimits(Map.of("memory", Quantity.parse(getContainerMemoryLimit())))
-                .withRequests(Map.of("memory", Quantity.parse(getContainerMemoryRequest())))
-                .build();
-    }
-
-    public Container createInitContainer() {
-        return new ContainerBuilder()
-                .withName("copy-notebooks")
-                .withImage(getContainerImage())
-                .withCommand("curl", "-X", "GET", getNotebookUri(), "-H", "accept: application/x-ipynb+json", "-o", getNotebookPath())
-                .addNewVolumeMount()
-                .withName(getVolumeName())
-                .withMountPath(getMountPath())
-                .endVolumeMount()
-                .build();
-    }
-
-    public Volume createVolume() {
-        return new VolumeBuilder()
-                .withName(getVolumeName())
-                .withEmptyDir(new EmptyDirVolumeSourceBuilder().build())
-                .build();
     }
 
 }
