@@ -2,7 +2,6 @@ package no.ssb.dapla.blueprintexecution.model;
 
 import no.ssb.dapla.blueprintexecution.blueprint.NotebookDetail;
 import no.ssb.dapla.blueprintexecution.blueprint.NotebookGraph;
-import org.jgrapht.Graph;
 import org.jgrapht.graph.DefaultEdge;
 import org.jgrapht.graph.DirectedAcyclicGraph;
 import org.jgrapht.traverse.TopologicalOrderIterator;
@@ -11,6 +10,8 @@ import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
+
+import static java.util.stream.Collectors.toSet;
 
 public class ExecutionPlanCreator implements Iterable<NotebookDetail> {
 
@@ -24,9 +25,7 @@ public class ExecutionPlanCreator implements Iterable<NotebookDetail> {
                 ));
         this.dag = new DirectedAcyclicGraph<>(DefaultEdge.class);
         graph.nodes.forEach(dag::addVertex);
-        graph.edges.forEach(edge -> {
-            dag.addEdge(notebookById.get(edge.from), notebookById.get(edge.to));
-        });
+        graph.edges.forEach(edge -> dag.addEdge(notebookById.get(edge.from), notebookById.get(edge.to)));
     }
 
     @Override
@@ -35,11 +34,15 @@ public class ExecutionPlanCreator implements Iterable<NotebookDetail> {
     }
 
     public Set<NotebookDetail> getAncestors(NotebookDetail notebook) {
-        return dag.getAncestors(notebook);
+        return dag.incomingEdgesOf(notebook).stream()
+                .map(dag::getEdgeSource)
+                .collect(toSet());
     }
 
     public Set<NotebookDetail> getDescendants(NotebookDetail notebook) {
-        return dag.getDescendants(notebook);
+        return dag.outgoingEdgesOf(notebook).stream()
+                .map(dag::getEdgeTarget)
+                .collect(toSet());
     }
 
     public int getOutDegreeOf(NotebookDetail notebook) {
