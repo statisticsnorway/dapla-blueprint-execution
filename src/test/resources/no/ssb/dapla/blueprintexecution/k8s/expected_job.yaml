@@ -8,6 +8,11 @@ metadata:
 spec:
   template:
     spec:
+      tolerations:
+        - effect: NoExecute
+          key: ssb-node
+          operator: Equal
+          value: jupyter
       containers:
         - name: "dummy-pod-prefix-757b9c7-0rvvw-cont"
           image: "dummy:image"
