@@ -19,8 +19,7 @@
     <properties>
         <exec.mainClass>no.ssb.dapla.blueprint.BlueprintExecutionApplication</exec.mainClass>
         <slf4j.version>1.7.30</slf4j.version>
-        <maven.compiler.release>14</maven.compiler.release>
-        <maven.compiler.source>14</maven.compiler.source>
+        <maven.compiler.release>15</maven.compiler.release>
         <pmdVersion>6.22.0</pmdVersion>
     </properties>
 
@@ -219,21 +218,14 @@
                     </annotationProcessorPaths>
                     <compilerArgs>
                         <arg>-Aproject=${project.groupId}/${project.artifactId}</arg>
-                        <arg>--enable-preview</arg>
                     </compilerArgs>
                 </configuration>
             </plugin>
             <plugin>
                 <artifactId>maven-surefire-plugin</artifactId>
-                <configuration>
-                     <argLine>--enable-preview ${argLine}</argLine>
-                </configuration>
             </plugin>
             <plugin>
                 <artifactId>maven-failsafe-plugin</artifactId>
-                <configuration>
-                    <argLine>--enable-preview ${argLine}</argLine>
-                </configuration>
             </plugin>
         </plugins>
     </build>
@@ -256,7 +248,7 @@
                     <plugin>
                         <groupId>org.jacoco</groupId>
                         <artifactId>jacoco-maven-plugin</artifactId>
-                        <version>0.8.5</version>
+                        <version>0.8.6</version>
                         <executions>
                             <execution>
                                 <id>prepare-agent</id>

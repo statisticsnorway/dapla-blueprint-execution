@@ -1,7 +1,7 @@
 #
 # Build Application image
 #
-FROM openjdk:14-slim
+FROM openjdk:15-slim
 
 #
 # Resources from build image
@@ -17,6 +17,6 @@ COPY target/classes/application.yaml /app/conf/
 
 WORKDIR /app
 
-CMD ["java", "--enable-preview", "-cp", "/app/lib/*", "no.ssb.dapla.blueprintexecution.BlueprintExecutionApplication"]
+CMD ["java", "-cp", "/app/lib/*", "no.ssb.dapla.blueprintexecution.BlueprintExecutionApplication"]
 
 EXPOSE 10180
